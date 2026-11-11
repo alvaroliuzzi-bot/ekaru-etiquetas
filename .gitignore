@@ -1,0 +1,7 @@
+__pycache__/
+*.log
+salida_impresion/
+_print_result.txt
+_printers*.txt
+.acceso_directo_creado
+*.lnk

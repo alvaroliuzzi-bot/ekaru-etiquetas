@@ -1,0 +1,4 @@
+import subprocess
+cmd="Get-PrinterPort | Select Name,Description,PrinterHostAddress | Format-Table -Auto | Out-String -Width 200; Get-PrinterDriver | Select Name,Manufacturer,PrinterEnvironment | Format-Table -Auto | Out-String -Width 200; Get-PnpDevice | Where-Object {$_.FriendlyName -match 'FTX|TTP|Printer|Impres|HPRT|USB Print|Seagull|Dispositivo compuesto'} | Select Status,Class,FriendlyName,InstanceId | Format-Table -Auto | Out-String -Width 250; Get-Printer | Select Name,PortName,DriverName,Shared,Published | Format-Table -Auto | Out-String -Width 200"
+r=subprocess.run(["powershell","-NoProfile","-Command",cmd],capture_output=True,text=True,encoding="cp850",errors="replace")
+open(r"C:\Users\USER\OneDrive\Desktop\Sistema_Helados\_printers4.txt","w",encoding="utf-8").write(r.stdout+r.stderr)

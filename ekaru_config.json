@@ -1,0 +1,19 @@
+{
+  "printer": "HPRT HT400(203dpi)",
+  "printer_large": "",
+  "gap_mm": 2.0,
+  "density": 8,
+  "speed": 4,
+  "direction": 1,
+  "offset_x": 0,
+  "offset_y": 0,
+  "strip_accents": false,
+  "mode": "gdi",
+  "grid": true,
+  "cols": 4,
+  "col_pitch_mm": 23.0,
+  "margin_left_mm": 7.7,
+  "margin_top_mm": 0.0,
+  "row_pitch_mm": 33.0,
+  "codigo_con_fecha": true
+}
