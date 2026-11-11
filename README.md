@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/img/icono.png" width="110" alt="Icono de e-Karú">
+
 # 🏷️ e-Karú Etiquetas
 
 **Etiquetas con código de barras y tabla nutricional para los productos de Glacé, en la impresora térmica HPRT HT400**
