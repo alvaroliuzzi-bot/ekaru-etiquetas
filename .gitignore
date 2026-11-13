@@ -5,3 +5,6 @@ _print_result.txt
 _printers*.txt
 .acceso_directo_creado
 *.lnk
+contadores.json
+insumos.json
+/tabla_transicion_codigos.csv

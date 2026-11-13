@@ -296,6 +296,7 @@ fieldset.bset legend{padding:0 6px;font-weight:700;font-size:14px;display:flex;a
 .scan-msg{font-size:14px;min-height:20px;padding:8px 12px;border-radius:10px;line-height:1.4}
 .scan-msg.ok{background:var(--brand-tint);color:var(--brand-ink)}
 .scan-msg.err{background:var(--red-tint);color:var(--red-ink);font-weight:600}
+.scan-msg.warn{background:var(--gold-tint);color:var(--gold-ink);font-weight:600}
 .scan-l{list-style:none;margin:0;padding:0;font-size:13px}
 .scan-l li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line)}
 .scan-l li:first-child{border-top:0}
@@ -441,7 +442,7 @@ fieldset.bset legend{padding:0 6px;font-weight:700;font-size:14px;display:flex;a
             <thead><tr><th>Cód.</th><th>Producto</th><th>Código de barra</th><th class="num">Precio de venta</th><th class="num">Stock</th><th><span class="sr">Acción</span></th></tr></thead>
             <tbody id="catBody"></tbody>
           </table></div>
-          <p class="mut" style="font-size:12.5px;padding:12px 20px 16px">Datos de demostración: precios y stock ilustrativos. Los códigos de barra de productos y de grupos PADRE vienen del catálogo; los códigos de lotes y baldes son ilustrativos y no se pueden escanear.</p>
+          <p class="mut" style="font-size:12.5px;padding:12px 20px 16px">Datos de demostración: precios y stock ilustrativos. Los códigos siguen la Numeración v2 del Informe final: productos 22 + Nº + fecha, baldes 2 + sabor de la balanza + peso, grupos PADRE 29. Los sabores usan el número de la balanza; los pesos de los baldes, las fechas y el stock son ilustrativos.</p>
         </div>
 
         <div class="card" id="saleCard">
@@ -494,7 +495,7 @@ fieldset.bset legend{padding:0 6px;font-weight:700;font-size:14px;display:flex;a
       <div class="tiers">
         <div class="card tier"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg></span><h3>Código PADRE de grupo</h3><p>Conos, vasos, milkshakes y smoothies comparten un código agrupado, por ejemplo 50 vasos. Al vender se elige el grupo y cuántas unidades consumir.</p><span class="tag tag-spec" style="align-self:flex-start">Spec</span></div>
         <div class="card tier"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 11 4.08 10.35a1 1 0 0 0 1.84 0L17 11"/><path d="M17 7A5 5 0 0 0 7 7"/><path d="M17 7a2 2 0 0 1 0 4H7a2 2 0 0 1 0-4"/></svg></span><h3>Código de balde</h3><p>Cada balde de helado tiene su propio código, impreso por la balanza. Se descuentan gramos del balde elegido: 60 g por bocha.</p><span class="tag tag-spec" style="align-self:flex-start">Spec</span></div>
-        <div class="card tier"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 7v10"/><path d="M12 7v10"/><path d="M16 7v10"/></svg></span><h3>Código individual</h3><p>Palitos, alfajores, brownies, postres, tartas y tortas tienen un código por producto. Cada venta descuenta una unidad.</p><span class="tag tag-spec" style="align-self:flex-start">Spec</span></div>
+        <div class="card tier"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 7v10"/><path d="M12 7v10"/><path d="M16 7v10"/></svg></span><h3>Código individual</h3><p>Palitos, alfajores, brownies, postres, tartas y tortas tienen un código por producto y fecha de elaboración (22 + Nº + AAMMDD). Cada venta descuenta una unidad.</p><span class="tag tag-spec" style="align-self:flex-start">Spec</span></div>
         <div class="card tier"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 8.7 5 8.7-5"/></svg></span><h3>PADRE con hijos</h3><p>Excepción del Promo Pack 12 palitos: el ID del paquete se genera al escanear los 12 palitos y se asocia a sus 12 IDs.</p><span class="tag tag-spec" style="align-self:flex-start">Spec</span></div>
       </div>
       <p class="sec-p">En e-Karú, ID es lo mismo que código de barra. El negocio define el código de cada producto.</p>
@@ -551,15 +552,29 @@ fieldset.bset legend{padding:0 6px;font-weight:700;font-size:14px;display:flex;a
         </ul>
       </article>
 
-      <h2 class="h-sec">Código hijo con fecha de elaboración</h2>
+      <h2 class="h-sec">Numeración de códigos (v2)</h2>
       <article class="card upd">
-        <p class="sec-p">Cada producto individual (palitos, alfajores, brownies, postres, tartas, tortas y Cono Fan) tiene su propio EAN-13: <b>2 + producto (6) + fecha AADDD (5) + dígito verificador</b>. La categoría agrupa los productos desde el catálogo.</p>
+        <p class="sec-p">Cada familia de códigos tiene su propio prefijo, así un código de producto nunca se confunde con un balde. Todos son EAN-13 con dígito de control válido. Es la numeración del Informe final, página 3.</p>
+        <div class="tw"><table>
+          <thead><tr><th>Prefijo</th><th>Qué es</th><th>Formato</th><th>Ejemplo</th></tr></thead>
+          <tbody id="numBody"></tbody>
+        </table></div>
         <ul class="rl">
-          <li><span class="tag tag-spec">Spec</span><span>Los primeros 7 dígitos identifican siempre al producto: el sistema busca por prefijo.</span></li>
-          <li><span class="tag tag-spec">Spec</span><span>Las cifras 8 a 12 son la fecha de elaboración (año de 2 cifras + día del año). Sirven para lote y vencimiento.</span></li>
-          <li><span class="tag tag-spec">Spec</span><span>Vasos, conos 2 y 3, milkshakes, smoothies y potes son solo PADRE: código fijo, sin fecha. Los baldes de 10 × 8 cm no llevan código de barras.</span></li>
+          <li><span class="tag tag-spec">Spec</span><span>Producto terminado (palitos, alfajores, brownies, postres, tartas, tortas y Cono Fan): <b>22 + Nº de producto (4) + fecha de elaboración AAMMDD (6) + control</b>. El Nº es el número actual del catálogo (Palito con cobertura = 0001). La fecha es el lote y sirve para el vencimiento.</span></li>
+          <li><span class="tag tag-spec">Spec</span><span>Balde de helado: <b>2 + sabor de la balanza (6) + peso en gramos (5) + control</b>. Lo imprime la balanza; los sabores de este prototipo usan el número real de Scale Manager.</span></li>
+          <li><span class="tag tag-spec">Spec</span><span>Vasos, conos 2 y 3, milkshakes, smoothies y potes son solo PADRE: código fijo 29…, sin fecha. Los baldes de 10 × 8 cm no llevan código de barras.</span></li>
+          <li><span class="tag tag-spec">Spec</span><span>Los códigos viejos (catálogo de e-Karú y e-Karú Etiquetas 2.0) se aceptan solo como tabla de transición: se buscan primero, antes de las reglas del control y de los baldes, y se rechazan con el aviso «reetiquetar».</span></li>
+          <li><span class="tag tag-prop">Propuesta</span><span>Brownie con helado es el producto Nº 21: sus «códigos de lote» pasan a ser sus fechas de elaboración (22 0021 + fecha).</span></li>
         </ul>
-        <p class="mut" style="font-size:13px;margin-top:10px">Ejemplo de hoy: Palito frutilla, código del catálogo <span class="mono" id="dtBase"></span> → impreso hoy <span class="mono" id="dtCode"></span> (fecha <span class="mono" id="dtField"></span>).</p>
+        <p class="mut" style="font-size:13px;margin-top:10px">Ejemplo de hoy: Palito frutilla (Nº <span class="mono" id="dtNum"></span>), código viejo <span class="mono" id="dtBase"></span> → impreso hoy <span class="mono" id="dtCode"></span> (fecha <span class="mono" id="dtField"></span>).</p>
+      </article>
+
+      <h2 class="h-sec">Probar un código</h2>
+      <article class="card upd">
+        <p class="sec-p">Escribí o pegá cualquier código y mirá cómo lo lee e-Karú: las 7 reglas del Informe, en el mismo orden que usa el lector de e-Karú Etiquetas.</p>
+        <div class="scan-f"><label class="sr" for="rdIn">Código a probar</label><input id="rdIn" inputmode="numeric" autocomplete="off" maxlength="30" placeholder="Por ejemplo: 22 0002 261112 5"><button class="btn btn-primary" type="button" data-act="rd-go">Leer</button></div>
+        <div class="chips" id="rdEx" role="group" aria-label="Ejemplos para probar"></div>
+        <div class="stack" id="rdOut" style="gap:8px" aria-live="polite"></div>
       </article>
 
       <h2 class="h-sec">Códigos PADRE del catálogo</h2>
@@ -575,7 +590,7 @@ fieldset.bset legend{padding:0 6px;font-weight:700;font-size:14px;display:flex;a
           <li><span>Si la cantidad es mayor que 1, ¿los sabores valen para todas las unidades o se pide una preparación por unidad? El prototipo aplica los mismos sabores a todas.</span></li>
           <li><span>Si un balde no alcanza para la porción, ¿se puede completar con otro balde del mismo sabor? El prototipo lo bloquea.</span></li>
           <li><span>Potes de 1 kg, ½ kg y ¼ kg: ¿cuántos sabores y cuántos gramos por sabor?</span></li>
-          <li><span>Brownie con helado: ¿conviven el código del catálogo (2 000021 30003 8) y los códigos de lote para elegir?</span></li>
+          <li><span>Brownie con helado (producto Nº 21): ¿alcanza con 22 0021 + fecha de elaboración para elegir el lote, o hace falta un código aparte por tanda?</span></li>
         </ol>
       </article>
     </div>
@@ -615,14 +630,26 @@ var fmtG=function(n){return 'G. '+num(n)};
 var gr=function(g){return num(g)+' g'};
 var kg=function(g){return String(+(g/1000).toFixed(2)).replace('.',',')+' kg'};
 var pad=function(n,l){return String(n).padStart(l,'0')};
-var fmtCode=function(c){return c.length===13?c[0]+' '+c.slice(1,7)+' '+c.slice(7,12)+' '+c[12]:c};
+/* Cómo se lee cada código: 20 y 29 → 2 000001 01105 8 · 22 y 25 → 22 0001 261110 4 · 23 y 24 → 23 0000000001 6 */
+var fmtCode=function(c){
+  if(c.length!==13)return c;
+  var p=c.slice(0,2);
+  if(p==='22'||p==='25')return p+' '+c.slice(2,6)+' '+c.slice(6,12)+' '+c[12];
+  if(p==='23'||p==='24')return p+' '+c.slice(2,12)+' '+c[12];
+  return c[0]+' '+c.slice(1,7)+' '+c.slice(7,12)+' '+c[12];
+};
 var RM=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 var now=function(){return new Date().toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',second:'2-digit'})};
 var ean=function(c12){var s=0;for(var i=0;i<12;i++)s+=(+c12[i])*(i%2?3:1);return c12+((10-s%10)%10)};
-/* Código hijo: 2 + producto (6) + fecha de elaboración AADDD (5) + dígito verificador */
+/* Numeración v2 (Informe final, página 3).
+   Producto: 22 + Nº de producto (4) + fecha de elaboración AAMMDD (6) + control · Balde: 2 + sabor de la balanza (6) + peso en g (5) + control
+   Promo Pack: 23 + Nº (10) + control · Grupo PADRE: 29… (se mantiene) · todos EAN-13 con control válido */
 var TODAY=new Date();
-var dfield=function(d){var n=Math.round((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-Date.UTC(d.getFullYear(),0,0))/864e5);return ('0'+(d.getFullYear()%100)).slice(-2)+('00'+n).slice(-3)};
-var dated=function(code,d){return ean(code.slice(0,7)+dfield(d||TODAY))};
+var aammdd=function(d){return pad(d.getFullYear()%100,2)+pad(d.getMonth()+1,2)+pad(d.getDate(),2)};
+var fdate=function(d){return pad(d.getDate(),2)+'/'+pad(d.getMonth()+1,2)+'/'+d.getFullYear()};
+var pnum=function(code){return +code.slice(1,7)};   /* Nº de producto = el del código fijo del catálogo (Palito con cobertura = 1) */
+var dated=function(code,d){return ean('22'+pad(pnum(code),4)+aammdd(d||TODAY))};
+var mod10=function(s){var t=0,i;for(i=0;i<s.length;i++)t+=(+s[s.length-1-i])*(i%2?1:3);return (10-t%10)%10};
 
 var ICONS={
  plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
@@ -669,6 +696,7 @@ var FLAVORS=[
  {id:'me',n:'Menta',c:'#7CC4A8',b:[6000,1900]}
 ];
 var FL={};FLAVORS.forEach(function(f){FL[f.id]=f});
+var FLNUM={dl:23,ch:18,am:1,va:15,fr:79,gz:80,mb:31,pi:78,or:10,me:32};   /* número del sabor en la balanza (Scale Manager) */
 var BALDE_CAP=6200;
 
 var FAMS={
@@ -714,10 +742,11 @@ PRODS.push({id:'bh',cod:1133,n:'Brownie con helado',price:20000,prep:true,kind:'
 PRODS.push({id:'pk',cod:2801,n:'Promo Pack 12 palitos',price:66000,prep:true,kind:'pack',cat:'Palitos',sub:'12 palitos a elección'});
 var dIdx=0;
 Object.keys(RAW).forEach(function(cat){RAW[cat].forEach(function(r,i){
-  PRODS.push({id:'d'+dIdx,dk:'d'+dIdx,cod:r[3]||(301+dIdx),n:r[0],code:dated(r[1]),base:r[1],price:r[2],cat:cat,kind:'direct',stock:cat==='Palitos'?14+(i%4)*3:((dIdx*7+3)%12)+4});
+  PRODS.push({id:'d'+dIdx,dk:'d'+dIdx,cod:r[3]||(301+dIdx),n:r[0],code:dated(r[1]),base:r[1],pre:'22'+pad(pnum(r[1]),4),price:r[2],cat:cat,kind:'direct',stock:cat==='Palitos'?14+(i%4)*3:((dIdx*7+3)%12)+4});
   dIdx++;
 })});
 var PROD={};PRODS.forEach(function(p){PROD[p.id]=p});
+var NUMPROD={};PRODS.forEach(function(p){if(p.kind==='direct')NUMPROD[pnum(p.base)]=p});NUMPROD[pnum(BH_BASE)]=PROD.bh;   /* Nº de producto → producto */
 var PALITOS=PRODS.filter(function(p){return p.cat==='Palitos'&&p.kind==='direct'});
 var CATS=['Con preparación','Palitos','Alfajores','Brownies','Otros postres','Tartas','Cono Fan','Tortas','Todos'];
 
@@ -728,15 +757,15 @@ function initInv(){
   var inv={};
   FLAVORS.forEach(function(f,fi){f.b.forEach(function(g,bi){
     var id=f.id+(bi+1);
-    inv[id]={id:id,kind:'balde',fl:f.id,code:ean('784'+'0'+pad(fi+1,2)+pad(Math.round(g/10),3)+'0'+(bi+1)+'0'),label:f.n+' · balde '+kg(g),v:g,cap:BALDE_CAP,orig:g,unit:'g'};
+    inv[id]={id:id,kind:'balde',fl:f.id,code:ean('2'+pad(FLNUM[f.id],6)+pad(g,5)),label:f.n+' · balde '+kg(g),v:g,cap:BALDE_CAP,orig:g,unit:'g'};
   })});
   Object.keys(FAMS).forEach(function(k){var f=FAMS[k];f.lots.forEach(function(u,li){
     var id=k+'-'+li;
     inv[id]={id:id,kind:'lot',fam:k,li:li,code:derive(f.parent,li),label:'Grupo PADRE · '+f.n,v:u,cap:f.lots[0],orig:u,unit:'u'};
   })});
   BH_LOTS.forEach(function(u,li){
-    var id='bh-'+li;
-    inv[id]={id:id,kind:'lot',fam:'bh',li:li,code:derive(BH_BASE,li+1),label:'Brownie con helado · código '+(li+1),v:u,cap:Math.max.apply(null,BH_LOTS),orig:u,unit:'u'};
+    var id='bh-'+li,d=new Date(TODAY.getFullYear(),TODAY.getMonth(),TODAY.getDate()-li);
+    inv[id]={id:id,kind:'lot',fam:'bh',li:li,code:dated(BH_BASE,d),label:'Brownie con helado · elaborado '+fdate(d),v:u,cap:Math.max.apply(null,BH_LOTS),orig:u,unit:'u'};
   });
   PRODS.forEach(function(p){if(p.dk)inv[p.dk]={id:p.dk,kind:'unit',pid:p.id,code:p.code,label:p.n,v:p.stock,cap:p.stock,orig:p.stock,unit:'u'}});
   S.inv=inv;
@@ -750,7 +779,7 @@ function relIds(p){
   return unitItems(p).map(function(i){return i.id});
 }
 function pk(x){var l=unitItems(x).filter(function(i){return i.v>0})[0];return l?l.id:x.dk}
-function unitItems(p){return Object.keys(S.inv).map(function(k){return S.inv[k]}).filter(function(i){return i.kind==='unit'&&i.pid===p.id}).sort(function(a,b){return a.code.slice(7,12)<b.code.slice(7,12)?-1:1})}
+function unitItems(p){return Object.keys(S.inv).map(function(k){return S.inv[k]}).filter(function(i){return i.kind==='unit'&&i.pid===p.id}).sort(function(a,b){return a.code.slice(6,12)<b.code.slice(6,12)?-1:1})}
 function stockOf(p){
   if(p.kind==='pack')return null;
   return relIds(p).reduce(function(a,id){return a+S.inv[id].v},0);
@@ -782,7 +811,7 @@ function matches(p){
   else if(S.filter!=='Todos'&&p.cat!==S.filter)return false;
   if(S.q){
     var q=S.q.toLowerCase().trim(),qd=q.replace(/\s+/g,'');
-    var codes=[p.code||'',p.base||'',p.fam?FAMS[p.fam].parent:'',String(p.cod)].join(' ');
+    var codes=[p.code||'',p.base||'',p.pre||'',p.fam?FAMS[p.fam].parent:'',String(p.cod)].join(' ');
     if(p.n.toLowerCase().indexOf(q)<0&&codes.replace(/\s+/g,'').indexOf(qd)<0)return false;
   }
   return true;
@@ -975,12 +1004,12 @@ function renderBrownie(p){
   var miss=!lot?'Marcá el código del brownie':!b?'Marcá el balde de helado':null;
   var h='<section class="step"><div class="step-h"><span class="n">1</span><h3>Código del brownie con helado</h3><span class="tag tag-spec">Update 1</span></div>'
    +note('s','Un check elige un único código. Los demás códigos quedan disponibles. Brownie porción tiene un código distinto.')
-   +'<p class="mut" style="font-size:13px">Código del catálogo: <span class="mono">'+fmtCode(BH_BASE)+'</span></p>'
+   +'<p class="mut" style="font-size:13px">Producto Nº '+pnum(BH_BASE)+': cada código lleva su fecha de elaboración, <span class="mono">22 '+pad(pnum(BH_BASE),4)+' AAMMDD</span></p>'
    +'<div class="opts" role="radiogroup" aria-label="Códigos disponibles">'+lots.map(function(l){
       var sel=p.lot===l.id,ok=l.v>=1;
       return '<label class="opt"><input class="chk" type="radio" name="lot" value="'+l.id+'" data-fid="lot-'+l.id+'"'+(sel?' checked':'')+(ok?'':' disabled')+'>'
        +'<span class="'+(sel?'scan ':'')+'bc bc-md">'+bars(l.code)+'<span class="bc-num">'+fmtCode(l.code)+'</span></span>'
-       +'<span class="opt-t"><b>Brownie disponible '+(l.li+1)+'</b><span>'+l.v+' unidades</span>'+meter(l)+'<span class="'+(ok?'st-ok':'st-no')+'">'+(ok?'Disponible':'Agotado')+'</span></span></label>';
+       +'<span class="opt-t"><b>Elaborado '+elabTxt(l.code)+(l.li===0?' · hoy':l.li===1?' · ayer':'')+'</b><span>'+l.v+' unidades</span>'+meter(l)+'<span class="'+(ok?'st-ok':'st-no')+'">'+(ok?'Disponible':'Agotado')+'</span></span></label>';
     }).join('')+'</div></section>';
   h+='<section class="step"><div class="step-h"><span class="n">2</span><h3>Helado · porción de '+need+' g</h3><span class="tag tag-spec">Spec</span></div>'
    +'<div class="slots"><div><label for="bhfl">Sabor del helado</label><select class="sel" id="bhfl" data-act="bhfl" data-fid="bhfl">'+FLAVORS.map(function(x){return '<option value="'+x.id+'"'+(p.fl===x.id?' selected':'')+'>'+x.n+'</option>'}).join('')+'</select></div></div>'
@@ -995,7 +1024,7 @@ function renderBrownie(p){
 }
 
 var packTotal=function(p){return Object.keys(p.scan).reduce(function(a,k){return a+p.scan[k]},0)};
-var packCode=function(n){return '2'+'91'+pad(n,4)+'90009'+'0'};
+var packCode=function(n){return ean('23'+pad(n,10))};   /* Promo Pack: 23 + Nº de paquete (10) + control */
 function renderPack(p){
   var pr=PROD.pk,tot=packTotal(p),done=tot===12,code=packCode(S.packSeq);
   var h='<section class="step"><div class="step-h"><span class="n">1</span><h3>Escaneo de contenido</h3><span class="tag tag-spec">Paso 1</span></div>'
@@ -1043,9 +1072,11 @@ function prepScanGo(raw){
   var p=S.prep;if(!p)return;
   var code=String(raw).replace(/\D/g,''),pr=PROD[p.pid];if(!code)return;
   var err=function(t){p.smsg={k:'err',t:t};renderPrep()},ok=function(t){p.smsg={k:'ok',t:t};renderPrep()};
-  if(!okEan(code))return err('<b>Error:</b> no es un código de producto válido. Volvé a escanear.');
+  var rd=readCode(code);
+  if(rd.st==='viejo')return err('<b>Etiqueta con código viejo.</b> '+esc(rd.msg));
+  if(rd.st==='rechazado')return err('<b>Error:</b> '+esc(rd.msg));
   if(p.kind==='pack'){
-    var x=PALITOS.filter(function(q){return q.base.slice(0,7)===code.slice(0,7)})[0];
+    var x=rd.k==='prod'&&rd.p&&rd.p.kind==='direct'&&rd.p.cat==='Palitos'?rd.p:null;
     if(!x)return err('<b>Error:</b> no es un palito del stock presente.');
     if(packTotal(p)>=12)return err('<b>Error:</b> ya están los 12 palitos del pack.');
     if((p.scan[x.id]||0)>=S.inv[pk(x)].v)return err('<b>Error:</b> no hay más stock de '+esc(x.n)+'.');
@@ -1055,7 +1086,7 @@ function prepScanGo(raw){
   var lot=lotsOf(fam).filter(function(l){return l.code===code})[0];
   if(lot){
     if(lot.v<qty)return err('<b>Error:</b> ese grupo no alcanza ('+lot.v+' u.).');
-    p.lot=lot.id;return ok('Grupo '+(lot.li+1)+' marcado: <b>'+lot.v+' u.</b> disponibles.');
+    p.lot=lot.id;return ok((p.kind==='brownie'?'Brownie del '+elabTxt(lot.code):'Grupo '+(lot.li+1))+' marcado: <b>'+lot.v+' u.</b> disponibles.');
   }
   var b=Object.keys(S.inv).map(function(k){return S.inv[k]}).filter(function(i){return i.kind==='balde'&&i.code===code})[0];
   if(b){
@@ -1173,10 +1204,101 @@ function resetDemo(){
 var SCAN_MODES={sale:'Escanear para vender',in:'Recibir mercadería con escáner',baja:'Baja por vencimiento'};
 var simN=0;
 function okEan(c){return /^\d{13}$/.test(c)&&ean(c.slice(0,12))===c}
-function prodByCode(c){return PRODS.filter(function(p){return p.kind==='direct'&&p.base.slice(0,7)===c.slice(0,7)})[0]}
-function elabTxt(c){
-  var f=c.slice(7,12),y=2000+(+f.slice(0,2)),dd=+f.slice(2);if(!dd||dd>366)return 'sin fecha';
-  var d=new Date(Date.UTC(y,0,dd));return pad(d.getUTCDate(),2)+'/'+pad(d.getUTCMonth()+1,2)+'/'+y;
+function elabTxt(c){var d=parseAmd(c.slice(6,12));return d?fdate(d):'sin fecha'}
+
+/* ---------- lector de códigos: las 7 reglas del Informe (Numeración v2), en este orden ---------- */
+var OLDCAT=["2000001100014", "2000002100017", "2000003100012", "2000004100019", "2000005100015", "2000006100011", "2000007100018", "2000008100013", "2000009100016", "2000010200021", "2000011200028", "2000012200025", "2000013200022", "2000014200029", "2000015200026", "2000016200023", "2000017200020", "2000018300037", "2000019300034", "2000020300031", "2000021300038", "2000022400045", "2000023400042", "2000024400049", "2000025500056", "2000026500053", "2000027500050", "2000028500057", "2000029600064", "2000030600061", "2000031600068", "2000032700073", "2000033700076", "2000034700079", "2000035700072", "2000036700075", "2000037700078", "2000038700071", "2000039700074", "2000040700070", "2000041700073", "2000042700076", "2000043700079", "2000044700072", "2000045700075", "2000046700078", "2000047700071"];   /* Nº 1 a 47: códigos del catálogo de e-Karú antes de corregir el dígito de control */
+var OLDPAD={"2900009800087": "2900009800084", "2900008800080": "2900008800085", "2900005800089": "2900005800088", "2900006800086": "2900006800087", "2900007800083": "2900007800086", "2900001800081": "2900001800082", "2900002800088": "2900002800081", "2900003800085": "2900003800080", "2900004800082": "2900004800089"};   /* grupos PADRE con el último dígito mal calculado → código correcto */
+var TRANS={};   /* tabla de transición: código viejo exacto → qué es */
+OLDCAT.forEach(function(c,i){TRANS[c]={k:'prod',n:i+1,src:'catálogo de e-Karú, control sin corregir'}});
+PRODS.forEach(function(p){if(p.kind==='direct'&&!TRANS[p.base])TRANS[p.base]={k:'prod',n:pnum(p.base),src:'e-Karú Etiquetas 2.0, sin fecha'}});
+if(!TRANS[BH_BASE])TRANS[BH_BASE]={k:'prod',n:pnum(BH_BASE),src:'e-Karú Etiquetas 2.0, sin fecha'};
+Object.keys(OLDPAD).forEach(function(c){TRANS[c]={k:'padre',ok:OLDPAD[c]}});
+var kg3=function(g){return (g/1000).toFixed(3).replace('.',',')+' kg'};
+function parseAmd(s){
+  if(!/^\d{6}$/.test(s))return null;
+  var y=2000+(+s.slice(0,2)),m=+s.slice(2,4),d=+s.slice(4,6),dt=new Date(y,m-1,d);
+  return dt.getFullYear()===y&&dt.getMonth()===m-1&&dt.getDate()===d?dt:null;
+}
+function flName(n){var k;for(k in FLNUM)if(FLNUM[k]===n)return FL[k].n;return null}
+function padName(c){
+  var l=Object.keys(S.inv).map(function(k){return S.inv[k]}).filter(function(i){return i.kind==='lot'&&i.fam!=='bh'&&i.code===c})[0];
+  return l?FAMS[l.fam].n+' · grupo '+(l.li+1):null;
+}
+function readCode(raw){
+  var c=String(raw).replace(/[\s-]/g,''),o={c:c,st:'rechazado',k:'',tipo:'',regla:'',msg:'',campos:[],p:null};
+  function done(st,k,tipo,regla,msg,campos,p){o.st=st;o.k=k;o.tipo=tipo;o.regla=regla;o.msg=msg||'';o.campos=campos||[];o.p=p||null;return o}
+  var hoy=new Date(TODAY.getFullYear(),TODAY.getMonth(),TODAY.getDate());
+  if(!c)return done('rechazado','','Sin código','','Escaneá una etiqueta o escribí el número del código.');
+  if(!/^\d+$/.test(c))return done('externo','ext','Código no numérico','Regla 7 · otro','No es un código interno de Glacé (los internos son solo números). e-Karú lo busca en las equivalencias de proveedor.');
+  /* regla 1 · 21 dígitos que empiezan con 2 → balde con transacción */
+  if(c.length===21&&c[0]==='2'){
+    var g1=+c.slice(7,12),cs=[['Sabor',c.slice(1,7)],['Peso',kg3(g1)],['Transacción',c.slice(12,20)]];
+    if(String(mod10(c.slice(0,20)))!==c[20])return done('rechazado','balde-serie','Balde con transacción','Regla 1','El dígito de control no cierra (debería ser '+mod10(c.slice(0,20))+'). Escaneá de nuevo.',cs);
+    if(g1<500||g1>12000)return done('rechazado','balde-serie','Balde con transacción','Regla 1','El peso está fuera del rango del envase (0,5 a 12 kg).',cs);
+    return done('ok','balde-serie','Balde con transacción','Regla 1','Si esa transacción ya está registrada, e-Karú avisa «balde ya escaneado».',cs);
+  }
+  /* tabla de transición: el código viejo exacto se busca antes de las reglas 2 y 3 */
+  if(c.length===13&&TRANS[c]){
+    var t=TRANS[c];
+    if(t.k==='prod'){var pr=NUMPROD[t.n];return done('viejo','prod-viejo','Código VIEJO de producto','Tabla de transición','Etiqueta con la numeración anterior ('+t.src+'). Hay que reetiquetar con el código nuevo (22 + Nº + fecha).',[['Producto',pr?pr.n:'(producto)'],['Nº de producto',pad(t.n,4)]],pr)}
+    return done('viejo','padre-viejo','Código VIEJO de grupo PADRE','Tabla de transición','El último dígito estaba mal calculado. El código correcto es '+fmtCode(t.ok)+'.',[['Código correcto',fmtCode(t.ok)]]);
+  }
+  /* regla 2 · 13 dígitos → control EAN-13 */
+  if(c.length===13&&!okEan(c))return done('rechazado','','Dígito de control incorrecto','Regla 2','El último dígito debería ser '+ean(c.slice(0,12)).slice(12)+'. Escaneá de nuevo.');
+  var pre=c.length===13&&c[0]==='2'?c.slice(0,2):'';
+  /* regla 3 · 20 → balde (el código viejo con fecha AADDD queda siempre por encima de 12 kg y se reconoce antes) */
+  if(pre==='20'){
+    var nm=+c.slice(1,7),g=+c.slice(7,12),yy=2000+(+c.slice(7,9)),dd=+c.slice(9,12),od=null;
+    if(nm>=1&&nm<=47&&yy>=2024&&yy<=2060&&dd>=1&&dd<=366){od=new Date(yy,0,dd);if(od.getFullYear()!==yy)od=null}
+    if(od){var pv=NUMPROD[nm];return done('viejo','prod-viejo','Código VIEJO de producto con fecha','Tabla de transición','Numeración anterior (2 + producto + fecha AADDD). Hay que reetiquetar con el código nuevo.',[['Producto',pv?pv.n:'(producto)'],['Elaborado',fdate(od)]],pv)}
+    var fc=[['Sabor',c.slice(1,7)+(flName(nm)?' · '+flName(nm):'')],['Peso',kg3(g)]];
+    if(g<500||g>12000)return done('rechazado','balde','Balde','Regla 3','El peso está fuera del rango del envase (0,5 a 12 kg).',fc);
+    return done('ok','balde','Balde','Regla 3',flName(nm)?'':'El sabor tiene que existir en el maestro de e-Karú.',fc);
+  }
+  /* regla 4 · 22 → producto con su fecha de elaboración (el lote) */
+  if(pre==='22'){
+    var n4=+c.slice(2,6),dt=parseAmd(c.slice(6,12)),pp=NUMPROD[n4];
+    var c4=[['Producto',pp?pp.n:'(no existe)'],['Nº de producto',pad(n4,4)],['Fecha de elaboración',dt?fdate(dt):c.slice(6,12)+' (no es una fecha)']];
+    if(!pp)return done('rechazado','prod','Producto terminado','Regla 4','Ese Nº de producto no existe en el catálogo.',c4);
+    if(!dt)return done('rechazado','prod','Producto terminado','Regla 4','La fecha de elaboración no es válida.',c4,pp);
+    if(dt>hoy)return done('rechazado','prod','Producto terminado','Regla 4','La fecha de elaboración es futura.',c4,pp);
+    c4.push(['Antigüedad',Math.round((hoy-dt)/864e5)+' día(s)']);
+    return done('ok','prod','Producto terminado','Regla 4','La fecha es el lote del producto.',c4,pp);
+  }
+  /* regla 5 · 23, 24, 25 y 29 */
+  if(pre==='23')return done('ok','pack','Promo Pack','Regla 5','e-Karú lo asocia a los 12 palitos escaneados.',[['Nº de paquete',String(+c.slice(2,12))]]);
+  if(pre==='24')return done('ok','idb','ID de balde','Regla 5','Etiqueta del plan B: se pega junto a la de la balanza.',[['Nº de balde',String(+c.slice(2,12))]]);
+  if(pre==='25'){
+    var n5=+c.slice(2,6),d5=parseAmd(c.slice(6,12)),c5=[['Nº de insumo',pad(n5,4)],['Fecha de recepción',d5?fdate(d5):c.slice(6,12)+' (no es una fecha)']];
+    if(!d5)return done('rechazado','insumo','Insumo interno','Regla 5','La fecha de recepción no es válida.',c5);
+    if(d5>hoy)return done('rechazado','insumo','Insumo interno','Regla 5','La fecha de recepción es futura.',c5);
+    return done('ok','insumo','Insumo interno','Regla 5','',c5);
+  }
+  if(pre==='29'){
+    var pn=padName(c);
+    if(!pn)return done('rechazado','padre','Grupo PADRE','Regla 5','Ese grupo PADRE no existe en el catálogo.');
+    return done('ok','padre','Grupo PADRE','Regla 5','Descuenta el grupo y los gramos del balde elegido.',[['Grupo',pn]]);
+  }
+  /* regla 6 · reservados */
+  if(pre==='21'||pre==='26'||pre==='27'||pre==='28')return done('rechazado','','Prefijo reservado','Regla 6','El prefijo '+pre+' queda libre para usos futuros.');
+  /* regla 7 · cualquier otro → EAN de proveedor */
+  return done('externo','ext','EAN de proveedor','Regla 7 · otro','e-Karú lo busca en las equivalencias; si no existe, pide vincularlo una sola vez al insumo.');
+}
+function renderReader(){
+  var inp=$('#rdIn'),out=$('#rdOut');if(!inp||!out)return;
+  var r=readCode(inp.value);
+  if(!r.c){out.innerHTML='';return}
+  var head={ok:'✔ Código correcto',viejo:'▲ Código viejo',rechazado:'✖ Rechazado',externo:'● Código externo'}[r.st];
+  out.innerHTML='<div class="scan-msg '+(r.st==='ok'?'ok':r.st==='viejo'?'warn':r.st==='externo'?'':'err')+'"><b>'+head+' · '+esc(r.tipo)+'</b>'+(r.regla?' <span class="mut">('+esc(r.regla)+')</span>':'')+(r.msg?'<br>'+esc(r.msg):'')+'</div>'
+   +(r.campos.length?'<ul class="scan-l">'+r.campos.map(function(f){return '<li><span>'+esc(f[0])+'</span><b>'+esc(f[1])+'</b></li>'}).join('')+'</ul>':'');
+}
+function readerExamples(){
+  var d1=new Date(TODAY.getFullYear(),TODAY.getMonth(),TODAY.getDate()+1);
+  var ex=[['Palito de hoy',dated('2000002100010')],['Con fecha futura',dated('2000002100010',d1)],['Código viejo del catálogo',OLDCAT[1]],['Balde de Amarena',ean('2'+pad(FLNUM.am,6)+'01105')],
+    ['Balde con transacción',(function(){var s='2'+pad(FLNUM.am,6)+'01105'+'00041129';return s+mod10(s)})()],['Grupo PADRE (Vaso 1)',FAMS.v1.parent],['Promo Pack',packCode(1)],
+    ['Insumo interno',ean('25'+'0001'+aammdd(TODAY))],['Prefijo reservado',ean('21'+'0000000001')],['EAN de proveedor',ean('784000000001')],['Control mal calculado',dated('2000002100010').slice(0,12)+((+dated('2000002100010')[12]+1)%10)]];
+  $('#rdEx').innerHTML=ex.map(function(e){return '<button class="chip" type="button" data-act="rd-ex" data-v="'+e[1]+'">'+esc(e[0])+'</button>'}).join('');
 }
 function openScan(mode,pid){
   S.scan={mode:mode,pid:pid||null,hist:[],msg:null};
@@ -1207,9 +1329,12 @@ function scanGo(raw){
   var sc=S.scan;if(!sc)return;
   var code=String(raw!=null?raw:($('#scanIn')||{}).value||'').replace(/\D/g,'');
   if(!code)return scanMsg('err','<b>Error:</b> no se leyó ningún código. Volvé a escanear.');
-  if(!okEan(code))return scanMsg('err','<b>Error:</b> no es un código de producto válido. Volvé a escanear.');
-  var p=prodByCode(code);
-  if(!p)return scanMsg('err','<b>Error:</b> no es un producto del stock presente. Los baldes y grupos PADRE se eligen en «Preparar».');
+  var rd=readCode(code);
+  if(rd.st==='viejo')return scanMsg('err','<b>Etiqueta con código viejo.</b> '+esc(rd.msg)+(rd.p?' Es «'+esc(rd.p.n)+'».':''));
+  if(rd.st==='rechazado')return scanMsg('err','<b>Error:</b> '+esc(rd.msg));
+  var p=rd.k==='prod'?rd.p:null;
+  if(!p)return scanMsg('err','<b>Error:</b> ese código es de tipo «'+esc(rd.tipo)+'», no de un producto con fecha. Los baldes y grupos PADRE se eligen en «Preparar».');
+  if(p.kind!=='direct')return scanMsg('err','<b>Error:</b> «'+esc(p.n)+'» se prepara con el botón «Preparar».');
   if(sc.pid&&p.id!==sc.pid)return scanMsg('err','<b>Error:</b> no es el producto deseado. Escaneaste «'+esc(p.n)+'» y se esperaba «'+esc(PROD[sc.pid].n)+'».');
   var it=unitItems(p).filter(function(i){return i.code===code})[0],el=elabTxt(code);
   if(sc.mode==='in'){
@@ -1267,7 +1392,7 @@ function renderStock(){
   var groups=Object.keys(FAMS).map(function(k){return {k:k,n:FAMS[k].n,unit:FAMS[k].unit}}).concat([{k:'bh',n:'Brownie con helado',unit:'unidades'}]);
   $('#stGrupos').innerHTML=groups.map(function(g){
     return '<div class="card fcard'+flashed(lotsOf(g.k).map(function(b){return b.id}))+'"><h3>'+esc(g.n)+'</h3>'+lotsOf(g.k).map(function(l){
-      return '<div class="brow">'+bc(l.code,'bc-sm')+'<div><span class="v">'+l.v+'</span> <span class="mut" style="font-size:12.5px">'+g.unit+' · Grupo '+(l.li+1)+'</span></div>'+meter(l)+'</div>';
+      return '<div class="brow">'+bc(l.code,'bc-sm')+'<div><span class="v">'+l.v+'</span> <span class="mut" style="font-size:12.5px">'+g.unit+' · '+(g.k==='bh'?'elab. '+elabTxt(l.code):'Grupo '+(l.li+1))+'</span></div>'+meter(l)+'</div>';
     }).join('')+'</div>';
   }).join('');
   renderStockProd();
@@ -1276,6 +1401,17 @@ function renderStock(){
   }).join('');
   $('#logEmpty').hidden=!!S.log.length;
   $('#logBody').closest('.tw').hidden=!S.log.length;
+}
+function renderNumTable(){
+  var rows=[['20','Balde de helado','2 + sabor (6) + peso en g (5) + control',ean('2'+pad(FLNUM.am,6)+'01105')],
+    ['22','Producto terminado','22 + Nº de producto (4) + AAMMDD + control',dated('2000002100010')],
+    ['23','Promo Pack','23 + Nº de paquete (10) + control',packCode(1)],
+    ['24','ID de balde (plan B)','24 + Nº correlativo (10) + control',ean('24'+pad(1,10))],
+    ['25','Insumo interno','25 + Nº de insumo (4) + AAMMDD de recepción + control',ean('25'+'0001'+aammdd(TODAY))],
+    ['29','Grupo PADRE','Se mantiene (2 9000NN 80008)',FAMS.k1.parent],
+    ['21 · 26–28','Reservados','Se rechazan por ahora',''],
+    ['otro','EAN del proveedor','El del empaque; se vincula una vez','']];
+  $('#numBody').innerHTML=rows.map(function(r){return '<tr><td class="mono"><b>'+r[0]+'</b></td><td>'+r[1]+'</td><td class="cell-s">'+r[2]+'</td><td class="mono" style="font-size:12.5px">'+(r[3]?fmtCode(r[3]):'—')+'</td></tr>'}).join('');
 }
 function renderPadre(){
   $('#padreBody').innerHTML=Object.keys(FAMS).map(function(k){var f=FAMS[k];
@@ -1311,6 +1447,8 @@ document.addEventListener('click',function(e){
   else if(a==='scan-go')scanGo();
   else if(a==='scan-sim')scanSim();
   else if(a==='scan-x')scanClose();
+  else if(a==='rd-go')renderReader();
+  else if(a==='rd-ex'){$('#rdIn').value=t.dataset.v;renderReader()}
   else if(a==='prep')openPrep(t.dataset.id);
   else if(a==='lq')lineQty(+t.dataset.id,+t.dataset.d);
   else if(a==='rm')removeLine(+t.dataset.id);
@@ -1354,6 +1492,7 @@ $('#scanDlg').addEventListener('close',function(){S.scan=null});
 document.addEventListener('keydown',function(e){
   if(e.key!=='Enter'||!e.target)return;
   if(e.target.id==='scanIn'){e.preventDefault();scanGo()}
+  else if(e.target.id==='rdIn'){e.preventDefault();renderReader()}
   else if(e.target.id==='prepScan'){e.preventDefault();prepScanGo(e.target.value)}
 });
 document.addEventListener('input',function(e){if(e.target.id==='prepScan'&&/^\d{13}$/.test(e.target.value.trim()))prepScanGo(e.target.value)});
@@ -1361,8 +1500,8 @@ document.addEventListener('input',function(e){if(e.target.id==='prepScan'&&/^\d{
 window.addEventListener('hashchange',setView);
 
 /* ========== arranque ========== */
-var dtB='2000002100010';document.getElementById('dtBase').textContent=fmtCode(dtB);document.getElementById('dtCode').textContent=fmtCode(dated(dtB));document.getElementById('dtField').textContent=dfield(TODAY);
-initInv();renderChips();renderPadre();setView();refresh();
+var dtB='2000002100010';document.getElementById('dtBase').textContent=fmtCode(dtB);document.getElementById('dtCode').textContent=fmtCode(dated(dtB));document.getElementById('dtField').textContent=aammdd(TODAY);document.getElementById('dtNum').textContent=pad(pnum(dtB),4);
+initInv();renderChips();renderPadre();renderNumTable();readerExamples();setView();refresh();
 })();
 </script>
 

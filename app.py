@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
 """E-Karú Etiquetas — generador e impresor de etiquetas (HPRT HT400, TSPL/RAW).
 
+Cambios v2.1: numeración de códigos v2 del Informe final (22 = producto + Nº de producto + fecha de
+elaboración, 23 = Promo Pack, 24 = ID de balde, 25 = insumo interno, 29 = grupo PADRE sin cambios),
+fecha de elaboración editable, etiquetas internas con numeración correlativa, lector de códigos con
+las 7 reglas del Informe, juego de prueba, tabla de transición (CSV) y búsqueda por código escaneado.
+La numeración anterior sigue disponible en Ajustes.
+
 Cambios v2.0: impresión RAW directa por ctypes (sin pywin32), diagnóstico de
 impresión, lista de catálogo virtualizada (sin parpadeo), vista previa idéntica
 a lo impreso y códigos de barras dibujados desde los mismos bits verificados.
 El catálogo (PRODUCTS) y los códigos de barras no se modificaron.
 """
+import csv
 import ctypes
 import json
 import os
@@ -18,7 +25,7 @@ import threading
 import time
 import traceback
 import unicodedata
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import customtkinter as ctk
@@ -28,7 +35,7 @@ from tkinter import font as tkfont
 
 
 APP_NAME = "E-Karú Etiquetas"
-VERSION = "v2.0.0"
+VERSION = "v2.1.0"
 BASE_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 DESIGNS_DIR = BASE_DIR / "diseños"
 QUANTITIES_FILE = BASE_DIR / "cantidades_impresion.json"
@@ -36,6 +43,9 @@ CONFIG_FILE = BASE_DIR / "ekaru_config.json"
 LOG_FILE = BASE_DIR / "ekaru_impresion.log"
 ERROR_LOG = BASE_DIR / "ekaru_startup_error.log"
 OUTPUT_DIR = BASE_DIR / "salida_impresion"
+COUNTERS_FILE = BASE_DIR / "contadores.json"            # últimos números de Promo Pack (23) e ID de balde (24)
+SUPPLIES_FILE = BASE_DIR / "insumos.json"               # lista de insumos internos (25): Nº + nombre
+TRANSITION_FILE = BASE_DIR / "tabla_transicion_codigos.csv"
 try:
     DESIGNS_DIR.mkdir(exist_ok=True)
 except OSError:
@@ -248,8 +258,17 @@ PRODUCT_QUANTITIES = _load_quantities()
 
 
 def spaced_code(value):
-    """2 000002 26307 4: dígitos agrupados como en las etiquetas impresas."""
-    return f"{value[0]} {value[1:7]} {value[7:12]} {value[12]}" if len(value) == 13 and value.isdigit() else value
+    """Dígitos agrupados como en el Informe: 22 0001 261110 4 · 23 0000000001 6 · 2 000002 26307 4 ·
+    balde con transacción (21 dígitos) 2 000001 01105 00041129 3."""
+    if len(value) == 21 and value.isdigit():
+        return f"{value[0]} {value[1:7]} {value[7:12]} {value[12:20]} {value[20]}"
+    if len(value) == 13 and value.isdigit():
+        if value[:2] in ("22", "25"):
+            return f"{value[:2]} {value[2:6]} {value[6:12]} {value[12]}"
+        if value[:2] in ("23", "24"):
+            return f"{value[:2]} {value[2:12]} {value[12]}"
+        return f"{value[0]} {value[1:7]} {value[7:12]} {value[12]}"
+    return value
 
 
 def barcode_kind(value):
@@ -274,17 +293,387 @@ def date_field(day=None):
 DATED_CATEGORIES = {"Palitos", "Alfajores", "Brownies", "Postres", "Tartas", "Tortas"}
 
 
-def print_code(name, day=None):
-    """Código que se imprime. Estructura: 2 + producto (6) + fecha AADDD (5) + dígito verificador.
-    Los primeros 7 dígitos identifican siempre al producto; las 5 cifras siguientes llevan la fecha."""
+# --------------------------------------------------------------------------- #
+#  Numeración v2 (Informe final, página «Códigos de barras»): un prefijo por familia dentro de 20–29
+#    20  balde (lo imprime la balanza)  2 + sabor (6) + peso en g (5) + control. Sin cambios.
+#    22  producto terminado             22 + Nº de producto (4) + fecha de elaboración AAMMDD (6) + control
+#    23  Promo Pack                     23 + número de paquete (10) + control
+#    24  ID de balde (plan B)           24 + número correlativo (10) + control
+#    25  insumo interno                 25 + Nº de insumo (4) + fecha de recepción AAMMDD (6) + control
+#    29  grupo PADRE                    se mantiene (2 9000NN 80008, con el último dígito bien calculado)
+#    21 y 26–28 reservados · cualquier otro = EAN del proveedor
+#  Todos los códigos internos tienen 13 dígitos con control EAN-13 válido (el balde con serie es Code 128 de 21).
+# --------------------------------------------------------------------------- #
+NUMERACION_NUEVA = "nueva"
+NUMERACION_ACTUAL = "actual"
+NUMERACION_TEXTO = {
+    NUMERACION_NUEVA: "Nueva (v2): 22 + Nº de producto + fecha",
+    NUMERACION_ACTUAL: "Anterior: 2 + producto + fecha AADDD",
+}
+CODE_STATE = {"numeracion": NUMERACION_NUEVA, "dia": None}  # dia=None → siempre la fecha de hoy
+MAX_NUMERO_CORRELATIVO = 9_999_999_999
+MAX_DIAS_ATRAS = 400   # la fecha de elaboración a mano no puede ser más vieja (evita errores de año al escribirla)
+
+# Códigos de producto del catálogo de e-Karú ANTES de corregir el dígito de control (codigos_cambios.csv).
+# Nº de producto → código anterior. El lector los acepta solo como «tabla de transición».
+CODIGOS_ANTERIORES = {
+    1: "2000001100014", 2: "2000002100017", 3: "2000003100012", 4: "2000004100019",
+    5: "2000005100015", 6: "2000006100011", 7: "2000007100018", 8: "2000008100013",
+    9: "2000009100016", 10: "2000010200021", 11: "2000011200028", 12: "2000012200025",
+    13: "2000013200022", 14: "2000014200029", 15: "2000015200026", 16: "2000016200023",
+    17: "2000017200020", 18: "2000018300037", 19: "2000019300034", 20: "2000020300031",
+    21: "2000021300038", 22: "2000022400045", 23: "2000023400042", 24: "2000024400049",
+    25: "2000025500056", 26: "2000026500053", 27: "2000027500050", 28: "2000028500057",
+    29: "2000029600064", 30: "2000030600061", 31: "2000031600068", 32: "2000032700073",
+    33: "2000033700076", 34: "2000034700079", 35: "2000035700072", 36: "2000036700075",
+    37: "2000037700078", 38: "2000038700071", 39: "2000039700074", 40: "2000040700070",
+    41: "2000041700073", 42: "2000042700076", 43: "2000043700079", 44: "2000044700072",
+    45: "2000045700075", 46: "2000046700078", 47: "2000047700071",
+}
+# Grupos PADRE: código anterior (último dígito mal calculado) → código con control válido (el que imprime esta app).
+PADRE_ANTERIORES = {
+    "2900009800087": "2900009800084",
+    "2900008800080": "2900008800085",
+    "2900005800089": "2900005800088",
+    "2900006800086": "2900006800087",
+    "2900007800083": "2900007800086",
+    "2900001800081": "2900001800082",
+    "2900002800088": "2900002800081",
+    "2900003800085": "2900003800080",
+    "2900004800082": "2900004800089",
+}
+# Insumos internos de ejemplo (Nº definitivo = el que acuerden Glacé y e-Karú). Se pueden agregar más en la app.
+INSUMOS_INICIALES = (
+    (1, "Fruta a granel"), (2, "Conos"), (3, "Vasos"),
+    (4, "Isopor 1 kg"), (5, "Isopor 1/2 kg"), (6, "Isopor 1/4 kg"),
+)
+
+
+def _as_date(day):
+    """date a partir de date/datetime/None (None = hoy)."""
+    if day is None:
+        return date.today()
+    return day.date() if isinstance(day, datetime) else day
+
+
+def aammdd(day=None):
+    """Fecha como AAMMDD (6 cifras). 10-nov-2026 → 261110."""
+    day = _as_date(day)
+    return f"{day.year % 100:02d}{day.month:02d}{day.day:02d}"
+
+
+def parse_aammdd(text):
+    """AAMMDD → date, o None si no es una fecha real (año 2000-2099)."""
+    if len(text) != 6 or not text.isdigit():
+        return None
+    try:
+        return date(2000 + int(text[:2]), int(text[2:4]), int(text[4:]))
+    except ValueError:
+        return None
+
+
+def parse_user_date(text):
+    """Fecha escrita por una persona: 12/11/2026, 12-11-26, 12.11.2026 o 12112026. None si no se entiende."""
+    text = str(text).strip()
+    for sep in ("-", "."):
+        text = text.replace(sep, "/")
+    if "/" in text:
+        parts = text.split("/")
+    elif text.isdigit() and len(text) in (6, 8):
+        parts = [text[:2], text[2:4], text[4:]]
+    else:
+        return None
+    if len(parts) != 3 or not all(p.strip().isdigit() for p in parts):
+        return None
+    day_, month, year = (int(p) for p in parts)
+    if year < 100:
+        year += 2000
+    try:
+        return date(year, month, day_)
+    except ValueError:
+        return None
+
+
+def mod10_check(payload):
+    """Dígito de control GS1 (módulo 10) de cualquier largo: pesos 3,1,3,1… contando desde la derecha."""
+    total = sum(int(d) * (3 if i % 2 == 0 else 1) for i, d in enumerate(reversed(payload)))
+    return str((10 - total % 10) % 10)
+
+
+def with_check(first12):
+    return first12 + ean13_check_digit(first12)
+
+
+def _number_in_range(value, low, high, what):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{what}: tiene que ser un número entero.") from None
+    if not low <= number <= high:
+        raise ValueError(f"{what}: tiene que estar entre {low} y {high}.")
+    return number
+
+
+def codigo_producto(numero, day=None):
+    """22 + Nº de producto (4) + fecha de elaboración AAMMDD (6) + control."""
+    return with_check(f"22{_number_in_range(numero, 1, 9999, 'Nº de producto'):04d}{aammdd(day)}")
+
+
+def codigo_insumo(numero, day=None):
+    """25 + Nº de insumo (4) + fecha de recepción AAMMDD (6) + control."""
+    return with_check(f"25{_number_in_range(numero, 1, 9999, 'Nº de insumo'):04d}{aammdd(day)}")
+
+
+def codigo_pack(numero):
+    """23 + número de paquete (10) + control."""
+    return with_check(f"23{_number_in_range(numero, 0, MAX_NUMERO_CORRELATIVO, 'Nº de paquete'):010d}")
+
+
+def codigo_id_balde(numero):
+    """24 + número correlativo (10) + control."""
+    return with_check(f"24{_number_in_range(numero, 0, MAX_NUMERO_CORRELATIVO, 'Nº de balde'):010d}")
+
+
+def product_number(name):
+    """Nº de producto del catálogo (Palito con cobertura = 1 … 47). None: grupo PADRE o balde."""
     code = PRODUCTS[name]["barcode"]
-    if not code or not CODE_WITH_DATE or not is_valid_ean13(code):
+    if len(code) == 13 and code[:3] == "200" and code.isdigit():
+        return int(code[1:7])
+    return None
+
+
+def products_by_number():
+    """{Nº: nombre} de los productos con código 22 (los 47 del catálogo)."""
+    result = {}
+    for name in PRODUCTS:
+        number = product_number(name)
+        if number is not None:
+            result.setdefault(number, name)
+    return result
+
+
+def padre_by_code():
+    """{código PADRE: [nombres]}."""
+    result = {}
+    for name, data in PRODUCTS.items():
+        if data["barcode"][:2] == "29":
+            result.setdefault(data["barcode"], []).append(name)
+    return result
+
+
+def padre_display(code):
+    """Nombre legible de un grupo PADRE (prefiere «Grupo PADRE …»)."""
+    names = padre_by_code().get(code, [])
+    if not names:
+        return None
+    pick = next((n for n in names if n.upper().startswith("GRUPO PADRE")), names[0])
+    detail = PRODUCTS[pick]["detail"]
+    return pick if detail.startswith("Grupo PADRE") else f"{pick} ({detail})"
+
+
+def print_code(name, day=None, mode=None):
+    """Código que se imprime para un producto del catálogo.
+
+    Numeración nueva (v2): productos = 22 + Nº de producto (4) + fecha de elaboración AAMMDD + control.
+    Los grupos PADRE (29…) y los baldes se mantienen. Numeración anterior: 2 + producto (6) + fecha AADDD
+    (5) + control, como en la versión 2.0. «day» = fecha de elaboración (por defecto la elegida en la app o hoy),
+    «mode» = numeración (por defecto la activa).
+    """
+    code = PRODUCTS[name]["barcode"]
+    if not code:
+        return code
+    day = day or CODE_STATE["dia"]
+    if (mode or CODE_STATE["numeracion"]) == NUMERACION_NUEVA:
+        number = product_number(name)
+        return codigo_producto(number, day) if number is not None else code
+    if not CODE_WITH_DATE or not is_valid_ean13(code):
         return code
     upper = name.upper()
     if product_category(name) in DATED_CATEGORIES or upper.startswith("CONO FAN"):
         first12 = code[:7] + date_field(day)
         return first12 + ean13_check_digit(first12)
     return code
+
+
+def set_numbering(mode):
+    CODE_STATE["numeracion"] = mode if mode in NUMERACION_TEXTO else NUMERACION_NUEVA
+
+
+def set_elaboration_day(day):
+    """Fecha de elaboración fija para los códigos; None = siempre la de hoy."""
+    CODE_STATE["dia"] = None if day is None or day == date.today() else _as_date(day)
+
+
+def effective_day():
+    return CODE_STATE["dia"] or date.today()
+
+
+# -- lector de códigos: las reglas del Informe, en el mismo orden ---------------------------------------------
+_TRANSICION = {}
+
+
+def tabla_transicion():
+    """Código viejo exacto → (clase, dato, origen). Los 47 códigos de producto + los 9 PADRE anteriores."""
+    if not _TRANSICION:
+        for number, old in CODIGOS_ANTERIORES.items():
+            _TRANSICION[old] = ("producto", number, "catálogo de e-Karú (antes de corregir el control)")
+        for number, name in products_by_number().items():
+            _TRANSICION.setdefault(PRODUCTS[name]["barcode"], ("producto", number, "e-Karú Etiquetas 2.0 (sin fecha)"))
+        for old, new in PADRE_ANTERIORES.items():
+            _TRANSICION[old] = ("padre", new, "grupo PADRE anterior (cambia solo el último dígito)")
+    return _TRANSICION
+
+
+def peso_texto(gramos):
+    return f"{gramos / 1000:.3f}".replace(".", ",") + " kg"
+
+
+def fecha_texto(day):
+    return f"{day:%d/%m/%Y}"
+
+
+def interpretar_codigo(texto, hoy=None, insumos=None):
+    """Lee un código como lo hará e-Karú (reglas del Informe, en orden). No usa la interfaz.
+
+    Devuelve un dict: estado («ok», «viejo», «rechazado» o «externo»), tipo, regla, campos [(nombre, valor)],
+    mensaje y, si es un producto, su nombre en «producto». «insumos» = {Nº: nombre} (opcional).
+    """
+    hoy = hoy or date.today()
+    code = "".join(str(texto).split()).replace("-", "")
+    out = {"codigo": code, "estado": "rechazado", "tipo": "", "regla": "", "campos": [], "mensaje": "", "producto": None}
+
+    def done(estado, tipo, regla, mensaje="", campos=None, producto=None):
+        out.update(estado=estado, tipo=tipo, regla=regla, mensaje=mensaje, campos=list(campos or []),
+                   producto=producto)
+        return out
+
+    if not code:
+        return done("rechazado", "Sin código", "", "Escaneá una etiqueta o escribí el número del código.")
+    if not code.isdigit():
+        return done("externo", "Código no numérico", "Regla 7 · otro",
+                    "No es un código interno de Glacé (los internos son solo números). e-Karú lo busca en las "
+                    "equivalencias de proveedor; si no existe, pide vincularlo.")
+    # Regla 1 · 21 dígitos que empiezan con 2 → balde con transacción
+    if len(code) == 21 and code[0] == "2":
+        grams = int(code[7:12])
+        campos = [("Sabor", code[1:7]), ("Peso", peso_texto(grams)), ("Transacción", code[12:20])]
+        if mod10_check(code[:20]) != code[20]:
+            return done("rechazado", "Balde con transacción", "Regla 1",
+                        f"El dígito de control no cierra (debería ser {mod10_check(code[:20])}). Escaneá de nuevo.", campos)
+        if not 500 <= grams <= 12000:
+            return done("rechazado", "Balde con transacción", "Regla 1",
+                        "El peso está fuera del rango del envase (0,5 a 12 kg).", campos)
+        return done("ok", "Balde con transacción", "Regla 1", "Si esa transacción ya está registrada, e-Karú avisa "
+                    "«balde ya escaneado». El sabor tiene que existir en el maestro de e-Karú.", campos)
+    # Tabla de transición: se busca el código exacto antes de las reglas 2 y 3
+    if len(code) == 13 and code in tabla_transicion():
+        kind, data, origin = tabla_transicion()[code]
+        if kind == "producto":
+            name = products_by_number().get(data, "(producto)")
+            return done("viejo", "Código VIEJO de producto", "Tabla de transición",
+                        f"Etiqueta con la numeración anterior ({origin}). Hay que reetiquetar con el código nuevo "
+                        f"(22 + Nº + fecha).", [("Producto", name), ("Nº de producto", f"{data:04d}")], name)
+        return done("viejo", "Código VIEJO de grupo PADRE", "Tabla de transición",
+                    f"{origin}. El código correcto es {data}.", [("Grupo", padre_display(data) or data),
+                                                                 ("Código correcto", data)])
+    # Regla 2 · 13 dígitos → control EAN-13
+    if len(code) == 13 and not is_valid_ean13(code):
+        return done("rechazado", "Dígito de control incorrecto", "Regla 2",
+                    f"El último dígito debería ser {ean13_check_digit(code[:12])}. Escaneá de nuevo.")
+    prefix = code[:2] if (len(code) == 13 and code[0] == "2") else ""
+    # Regla 3 · 20 → balde
+    if prefix == "20":
+        grams = int(code[7:12])
+        number = int(code[1:7])
+        # numeración anterior con fecha: 2 + producto (6) + AADDD (año + día del año). AADDD >= 24001 queda siempre
+        # por encima del peso máximo de un balde (12 kg), así que no se confunde con un balde.
+        old_day = None
+        year, ordinal = 2000 + int(code[7:9]), int(code[9:12])
+        if 1 <= number <= max(CODIGOS_ANTERIORES) and 2024 <= year <= 2060 and 1 <= ordinal <= 366:
+            old_day = date(year, 1, 1) + timedelta(days=ordinal - 1)
+            if old_day.year != year:  # día 366 en un año común
+                old_day = None
+        if old_day:
+            name = products_by_number().get(number, "(producto)")
+            return done("viejo", "Código VIEJO de producto con fecha", "Tabla de transición",
+                        "Numeración anterior (2 + producto + fecha AADDD). Hay que reetiquetar con el código nuevo.",
+                        [("Producto", name), ("Elaborado", fecha_texto(old_day))], name)
+        campos = [("Sabor", code[1:7]), ("Peso", peso_texto(grams))]
+        if not 500 <= grams <= 12000:
+            return done("rechazado", "Balde", "Regla 3", "El peso está fuera del rango del envase (0,5 a 12 kg).", campos)
+        return done("ok", "Balde", "Regla 3", "El sabor tiene que existir en el maestro de e-Karú.", campos)
+    # Regla 4 · 22 → producto
+    if prefix == "22":
+        number, day = int(code[2:6]), parse_aammdd(code[6:12])
+        name = products_by_number().get(number)
+        campos = [("Producto", name or "(no existe)"), ("Nº de producto", f"{number:04d}"),
+                  ("Fecha de elaboración", fecha_texto(day) if day else code[6:12] + " (no es una fecha)")]
+        if name is None:
+            return done("rechazado", "Producto terminado", "Regla 4", "Ese Nº de producto no existe en el catálogo.", campos)
+        if day is None:
+            return done("rechazado", "Producto terminado", "Regla 4", "La fecha de elaboración no es válida.", campos, name)
+        if day > hoy:
+            return done("rechazado", "Producto terminado", "Regla 4", "La fecha de elaboración es futura.", campos, name)
+        campos.append(("Antigüedad", f"{(hoy - day).days} día(s)"))
+        return done("ok", "Producto terminado", "Regla 4", "La fecha es el lote del producto.", campos, name)
+    # Regla 5 · 23, 24, 25 y 29
+    if prefix == "23":
+        return done("ok", "Promo Pack", "Regla 5", "e-Karú lo asocia a los 12 palitos escaneados.",
+                    [("Nº de paquete", str(int(code[2:12])))])
+    if prefix == "24":
+        return done("ok", "ID de balde", "Regla 5", "Etiqueta del plan B: se pega junto a la de la balanza.",
+                    [("Nº de balde", str(int(code[2:12])))])
+    if prefix == "25":
+        number, day = int(code[2:6]), parse_aammdd(code[6:12])
+        name = (insumos or {}).get(number)
+        campos = [("Insumo", name or "(sin nombre en esta PC)"), ("Nº de insumo", f"{number:04d}"),
+                  ("Fecha de recepción", fecha_texto(day) if day else code[6:12] + " (no es una fecha)")]
+        if day is None:
+            return done("rechazado", "Insumo interno", "Regla 5", "La fecha de recepción no es válida.", campos)
+        if day > hoy:
+            return done("rechazado", "Insumo interno", "Regla 5", "La fecha de recepción es futura.", campos)
+        return done("ok", "Insumo interno", "Regla 5", "", campos)
+    if prefix == "29":
+        label = padre_display(code)
+        if label is None:
+            return done("rechazado", "Grupo PADRE", "Regla 5", "Ese grupo PADRE no existe en el catálogo.")
+        return done("ok", "Grupo PADRE", "Regla 5", "Descuenta el grupo y los gramos del balde elegido.",
+                    [("Grupo", label)])
+    # Regla 6 · reservados
+    if prefix in ("21", "26", "27", "28"):
+        return done("rechazado", "Prefijo reservado", "Regla 6", f"El prefijo {prefix} queda libre para usos futuros.")
+    # Regla 7 · cualquier otro → EAN de proveedor
+    return done("externo", "EAN de proveedor", "Regla 7 · otro",
+                "e-Karú lo busca en las equivalencias; si no existe, pide vincularlo una sola vez al insumo.")
+
+
+def transition_rows(day=None):
+    """Filas de la tabla de transición (47 productos + 9 grupos PADRE) para exportar."""
+    day = day or date.today()
+    rows = [["Nº", "Producto", "Categoría", "Código anterior (catálogo e-Karú)", "Código 2.0 (control corregido)",
+             "Código nuevo v2 (ejemplo)", "Fecha del ejemplo", "Formato nuevo"]]
+    for number, name in sorted(products_by_number().items()):
+        rows.append([f"{number:04d}", name, product_category(name), CODIGOS_ANTERIORES.get(number, ""),
+                     PRODUCTS[name]["barcode"], codigo_producto(number, day), fecha_texto(day),
+                     "22 + Nº (4) + AAMMDD + control"])
+    seen = set()
+    for old, new in PADRE_ANTERIORES.items():
+        if new in seen:
+            continue
+        seen.add(new)
+        rows.append(["", padre_display(new) or new, "Grupo PADRE", old, new, new, "",
+                     "29 se mantiene: solo cambia el último dígito"])
+    return rows
+
+
+def write_transition_csv(path=None, day=None):
+    """Guarda la tabla de transición (CSV con «;», UTF-8 con BOM, abre bien en Excel). Devuelve la ruta."""
+    path = Path(path) if path else TRANSITION_FILE
+    tmp = path.with_name(path.name + ".tmp")
+    with tmp.open("w", encoding="utf-8-sig", newline="") as handle:
+        csv.writer(handle, delimiter=";", lineterminator="\r\n").writerows(transition_rows(day))
+    os.replace(tmp, path)
+    return path
 
 
 def duplicate_barcodes():
@@ -372,7 +761,9 @@ DEFAULT_CONFIG = {
     "margin_left_mm": 3.0,   # borde izquierdo de la 1.ª columna medido desde el borde de la página
     "margin_top_mm": 1.0,
     "row_pitch_mm": 33.0,    # alto de una fila de etiquetas (etiqueta + separación)
-    "codigo_con_fecha": True,  # códigos hijo con fecha de elaboración (ver print_code)
+    "codigo_con_fecha": True,  # numeración anterior: códigos hijo con fecha de elaboración (ver print_code)
+    "numeracion": "nueva",     # "nueva" = v2 del Informe (22 + Nº + AAMMDD…) · "actual" = la de la versión 2.0
+    "aviso_numeracion": False,  # True cuando ya se mostró el aviso de la numeración nueva
 }
 
 
@@ -393,10 +784,70 @@ def load_config():
                     config[key] = value
     except (OSError, ValueError, TypeError):
         pass
+    if config.get("numeracion") not in NUMERACION_TEXTO:
+        config["numeracion"] = NUMERACION_NUEVA
     return config
 
 
-CODE_WITH_DATE = bool(load_config().get("codigo_con_fecha", True))
+_STARTUP_CONFIG = load_config()
+CODE_WITH_DATE = bool(_STARTUP_CONFIG.get("codigo_con_fecha", True))
+set_numbering(_STARTUP_CONFIG.get("numeracion"))
+
+
+# -- datos propios de la numeración v2: contadores (23 y 24) e insumos (25) ---------------------------------
+def load_counters():
+    """Últimos números usados de Promo Pack («pack») e ID de balde («balde»). Nunca lanza excepciones."""
+    counters = {"pack": 0, "balde": 0}
+    try:
+        data = json.loads(COUNTERS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return counters
+    if isinstance(data, dict):
+        for key in counters:
+            value = data.get(key)
+            if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= MAX_NUMERO_CORRELATIVO:
+                counters[key] = value
+    return counters
+
+
+def save_counters(counters):
+    atomic_write_json(COUNTERS_FILE, {"pack": int(counters.get("pack", 0)), "balde": int(counters.get("balde", 0))})
+
+
+def load_supplies():
+    """Lista de insumos internos [(Nº, nombre)], ordenada por Nº. Si no hay archivo, la lista inicial."""
+    items = {}
+    try:
+        data = json.loads(SUPPLIES_FILE.read_text(encoding="utf-8"))
+        for entry in data.get("insumos", []) if isinstance(data, dict) else []:
+            number, name = entry.get("numero"), str(entry.get("nombre", "")).strip()
+            if isinstance(number, int) and not isinstance(number, bool) and 1 <= number <= 9999 and name:
+                items[number] = name
+    except (OSError, ValueError, TypeError, AttributeError):
+        items = {}
+    if not items:
+        items = dict(INSUMOS_INICIALES)
+    return sorted(items.items())
+
+
+def save_supplies(items):
+    atomic_write_json(SUPPLIES_FILE, {"insumos": [{"numero": n, "nombre": name} for n, name in sorted(items)]})
+
+
+def add_supply(name):
+    """Agrega un insumo con el siguiente Nº (los números no se reutilizan). Devuelve (Nº, lista)."""
+    name = " ".join(str(name).split())
+    if not name:
+        raise ValueError("El insumo necesita un nombre.")
+    items = load_supplies()
+    if any(existing.lower() == name.lower() for _, existing in items):
+        raise ValueError("Ya existe un insumo con ese nombre.")
+    number = max(n for n, _ in items) + 1
+    if number > 9999:
+        raise ValueError("No quedan números de insumo libres (máximo 9999).")
+    items.append((number, name))
+    save_supplies(items)
+    return number, sorted(items)
 
 
 def strip_accents(text):
@@ -404,15 +855,23 @@ def strip_accents(text):
 
 
 class PrintJob:
-    """Un trabajo de impresión: elementos de la etiqueta + programa TSPL equivalente."""
+    """Un trabajo de impresión: elementos de la etiqueta + programa TSPL equivalente.
 
-    def __init__(self, elements, w_mm, h_mm, copies, config, page="label"):
+    Con «labels» (lista de listas de elementos) es una SERIE: cada etiqueta lleva su propio contenido
+    (por ejemplo, números correlativos). Sin «labels» se imprimen «copies» copias idénticas.
+    """
+
+    def __init__(self, elements, w_mm, h_mm, copies, config, page="label", labels=None):
         self.page = page            # "label" | "grid" (varias columnas) | "strip" (fila de calibración)
+        self.labels = [list(items) for items in labels][:999] if labels else None
+        if self.labels:
+            elements, copies = self.labels[0], len(self.labels)
         self.elements = list(elements)
         self.w_mm, self.h_mm = w_mm, h_mm
         self.copies = max(1, min(999, int(copies)))
         self.config = dict(config)
-        self.data = build_tspl(self.elements, w_mm, h_mm, self.copies, self.config)
+        self.on_success = None      # función opcional: se llama cuando el envío salió bien
+        self.data = build_tspl(self.elements, w_mm, h_mm, self.copies, self.config, self.labels)
 
 
 # --------------------------------------------------------------------------- #
@@ -670,8 +1129,8 @@ class WinSpooler:
                 y0, y1 = round(y * ky), round((y + h) * ky)
                 gdi.PatBlt(hdc, ox + x0, oy + y0, max(1, x1 - x0), max(1, y1 - y0), 0x00000042)  # BLACKNESS
 
-            def draw_all(dx, dy):
-                for e in job.elements:
+            def draw_all(dx, dy, items=None):
+                for e in (job.elements if items is None else items):
                     if e[0] == "bar":
                         box(e[1] + dx, e[2] + dy, e[3], e[4])
                     elif e[0] == "box":
@@ -710,6 +1169,8 @@ class WinSpooler:
             top = float(cfg.get("margin_top_mm", 0.0)) * DPM
             pitch = float(cfg.get("col_pitch_mm", 23.0)) * DPM
             remaining = job.copies
+            series = getattr(job, "labels", None)  # serie: cada etiqueta con su propio contenido
+            printed = 0
             for _ in range(pages):
                 if gdi.StartPage(hdc) <= 0:
                     raise PrintError(f"El driver no pudo iniciar la página ({self._err()}).")
@@ -719,9 +1180,11 @@ class WinSpooler:
                     here = min(cols, remaining)
                     remaining -= here
                     for column in range(here):
-                        draw_all(left + column * pitch, top)
+                        draw_all(left + column * pitch, top, series[printed + column] if series else None)
+                    printed += here
                 else:
-                    draw_all(0, 0)
+                    draw_all(0, 0, series[printed] if series and printed < len(series) else None)
+                    printed += 1
                 if gdi.EndPage(hdc) <= 0:
                     raise PrintError(f"El driver no pudo terminar la página ({self._err()}).")
             gdi.EndDoc(hdc)
@@ -1359,6 +1822,57 @@ def product_elements(name):
     return small_label_elements(name, print_code(name), product["detail"], width, height)
 
 
+def _center_x(text, font, width=160):
+    return max(2, (width - len(text) * FONT_DOTS[font][0]) // 2)
+
+
+def coded_label_elements(code, top, bar_h, width=160, margin=6):
+    """Código de barras con su número debajo (igual que las etiquetas de producto); el bloque empieza en «top»."""
+    bars, _, _ = barcode_elements(code, width // 2, top, bar_h, width - 2 * margin)
+    return list(bars) + [("text", _center_x(code, "2", width), top + bar_h + 8, "2", code, False)]
+
+
+def insumo_label_elements(nombre, code, day):
+    """Etiqueta interna de insumo (2 x 3 cm): nombre, código 25 + Nº + fecha de recepción, y la fecha legible."""
+    elements = []
+    y = 10
+    for line in wrap_to(strip_accents(nombre).upper(), "1", 148)[:2]:
+        elements.append(("text", _center_x(line, "1"), y, "1", line, True))
+        y += 14
+    top = 46
+    elements += coded_label_elements(code, top, 104)
+    stamp = f"REC {_as_date(day):%d/%m/%y}"
+    elements.append(("text", _center_x(stamp, "1"), top + 104 + 8 + 20 + 8, "1", stamp, False))
+    return elements
+
+
+def serial_label_elements(title, subtitle, code):
+    """Etiqueta con numeración correlativa (Promo Pack, ID de balde): título, código y su número."""
+    elements = [("text", _center_x(title, "2"), 14, "2", title, True)]
+    if subtitle:
+        elements.append(("text", _center_x(subtitle, "1"), 40, "1", subtitle, False))
+    return elements + coded_label_elements(code, 62, 110)
+
+
+def test_set_labels(day=None, supplies=None):
+    """Una etiqueta de cada familia (22, 29, 25, 23 y 24) para probar los escáneres. Llevan la marca «PRUEBA»."""
+    day = _as_date(day)
+    number = min(products_by_number())
+    product = products_by_number()[number]
+    padre = next(name for name, data in PRODUCTS.items() if data["barcode"][:2] == "29")
+    supply_number, supply_name = (supplies or load_supplies())[0]
+    rows = [
+        ("Producto (22)", codigo_producto(number, day), small_label_elements(product, codigo_producto(number, day), "")),
+        ("Grupo PADRE (29)", PRODUCTS[padre]["barcode"], small_label_elements(padre, PRODUCTS[padre]["barcode"], "")),
+        ("Insumo (25)", codigo_insumo(supply_number, day),
+         insumo_label_elements(supply_name, codigo_insumo(supply_number, day), day)),
+        ("Promo Pack (23)", codigo_pack(1), serial_label_elements("PROMO PACK", "12 PALITOS", codigo_pack(1))),
+        ("ID de balde (24)", codigo_id_balde(1), serial_label_elements("ID DE BALDE", "", codigo_id_balde(1))),
+    ]
+    tag = ("text", _center_x("PRUEBA", "1"), 218, "1", "PRUEBA", True)
+    return [{"titulo": title, "codigo": code, "elementos": elements + [tag]} for title, code, elements in rows]
+
+
 def elements_overflow(elements, width, height):
     """Devuelve elementos que salen de la etiqueta (para pruebas y avisos)."""
     bad = []
@@ -1377,19 +1891,9 @@ def _tspl_text(value):
     return value.replace("\\", "\\\\").replace('"', '\\"').replace("\r", " ").replace("\n", " ")
 
 
-def build_tspl(elements, w_mm, h_mm, copies, config):
-    """Programa TSPL completo (bytes cp1252) para N copias idénticas."""
-    copies = max(1, min(999, int(copies)))
-    ox, oy = int(config.get("offset_x", 0)), int(config.get("offset_y", 0))
-    gap = float(config.get("gap_mm", 2.0))
-    head = [f"SIZE {w_mm} mm,{h_mm} mm"]
-    head.append(f"GAP {gap:g} mm,0 mm" if gap > 0 else "GAP 0 mm,0 mm")
-    head += [f"DIRECTION {int(config.get('direction', 1))}", "REFERENCE 0,0",
-             f"DENSITY {int(config.get('density', 8))}", f"SPEED {int(config.get('speed', 4))}"]
-    if not config.get("strip_accents"):
-        head.append("CODEPAGE 1252")
-    head.append("CLS")
-    chunks = [("\r\n".join(head) + "\r\n").encode("ascii")]
+def _tspl_elements(elements, ox, oy, config):
+    """Líneas TSPL (bytes) de los elementos de una etiqueta."""
+    chunks = []
     for e in elements:
         if e[0] == "text":
             _, x, y, font, text, bold = e
@@ -1403,6 +1907,30 @@ def build_tspl(elements, w_mm, h_mm, copies, config):
         elif e[0] == "box":
             _, x, y, w, h, t = e
             chunks.append(f"BOX {x + ox},{y + oy},{x + ox + w},{y + oy + h},{t}\r\n".encode("ascii"))
+    return chunks
+
+
+def build_tspl(elements, w_mm, h_mm, copies, config, labels=None):
+    """Programa TSPL completo (bytes cp1252): N copias idénticas, o una serie («labels») con una etiqueta distinta cada una."""
+    copies = max(1, min(999, int(copies)))
+    ox, oy = int(config.get("offset_x", 0)), int(config.get("offset_y", 0))
+    gap = float(config.get("gap_mm", 2.0))
+    head = [f"SIZE {w_mm} mm,{h_mm} mm"]
+    head.append(f"GAP {gap:g} mm,0 mm" if gap > 0 else "GAP 0 mm,0 mm")
+    head += [f"DIRECTION {int(config.get('direction', 1))}", "REFERENCE 0,0",
+             f"DENSITY {int(config.get('density', 8))}", f"SPEED {int(config.get('speed', 4))}"]
+    if not config.get("strip_accents"):
+        head.append("CODEPAGE 1252")
+    head.append("CLS")
+    chunks = [("\r\n".join(head) + "\r\n").encode("ascii")]
+    if labels:
+        for index, items in enumerate(labels):
+            if index:
+                chunks.append(b"CLS\r\n")
+            chunks.extend(_tspl_elements(items, ox, oy, config))
+            chunks.append(b"PRINT 1,1\r\n")
+        return b"".join(chunks)
+    chunks.extend(_tspl_elements(elements, ox, oy, config))
     chunks.append(f"PRINT 1,{copies}\r\n".encode("ascii"))
     return b"".join(chunks)
 
@@ -1928,6 +2456,8 @@ class EkaruApp(ctk.CTk):
         self.s = float(self._get_window_scaling())
         self.backend = backend or make_backend()
         self.config_data = load_config()
+        set_numbering(self.config_data.get("numeracion"))
+        self._painted_day = None
         self.printers = []
         self.selected = next(iter(PRODUCTS))
         self.visible = list(PRODUCTS)
@@ -1970,6 +2500,7 @@ class EkaruApp(ctk.CTk):
                                          text_color=MUTED)
         self.status_label.pack(fill="x", padx=16, pady=6)
         self.show_page("catalogo")
+        self._paint_date()
         self._refresh_list()
         self.select_product(self.selected)
         self.bind("<Control-p>", lambda e: self.print_product(self.selected))
@@ -1980,6 +2511,7 @@ class EkaruApp(ctk.CTk):
         if os.name == "nt" and not SHORTCUT_FLAG.exists():
             self.after(2500, lambda: threading.Thread(target=self._auto_shortcut, daemon=True).start())
         self.after(100, self._poll_results)
+        self.after(30_000, self._day_tick)
 
     def _maximize(self):
         try:
@@ -2013,14 +2545,24 @@ class EkaruApp(ctk.CTk):
                                                                    weight="bold"), text_color=ACCENT)
         logo.pack(anchor="w", padx=22, pady=(14 if small else 26, 0))
         ctk.CTkLabel(side, text=f"Etiquetas  ·  {VERSION}", font=self.fonts["small"],
-                     text_color=MUTED).pack(anchor="w", padx=22, pady=(0, 10 if small else 22))
+                     text_color=MUTED).pack(anchor="w", padx=22, pady=(0, 2))
+        self.num_label = ctk.CTkLabel(side, text=self._numbering_text(), font=self.fonts["small"], text_color=ACCENT)
+        self.num_label.pack(anchor="w", padx=22, pady=(0, 10 if small else 18))
         self.nav = {}
         for key, label in (("catalogo", "Catálogo de productos"), ("editor", "Editor de etiquetas")):
-            button = ctk.CTkButton(side, text=label, anchor="w", height=36 if small else 42, corner_radius=10,
+            button = ctk.CTkButton(side, text=label, anchor="w", height=32 if small else 42, corner_radius=10,
                                    font=self.fonts["btn"], fg_color="transparent", hover_color=CARD,
                                    text_color=TEXT, command=lambda k=key: self.show_page(k))
-            button.pack(fill="x", padx=14, pady=3)
+            button.pack(fill="x", padx=14, pady=2 if small else 3)
             self.nav[key] = button
+        ctk.CTkLabel(side, text="HERRAMIENTAS", font=self.fonts["small"], text_color=MUTED).pack(
+            anchor="w", padx=22, pady=(4 if small else 10, 0))
+        for label, command in (("Etiquetas internas", self.open_internal_labels),
+                               ("Leer un código", self.open_reader),
+                               ("Juego de prueba", self.print_test_set)):
+            ctk.CTkButton(side, text=label, anchor="w", height=30 if small else 40, corner_radius=10,
+                          font=self.fonts["btn"], fg_color="transparent", hover_color=CARD, text_color=TEXT,
+                          command=command).pack(fill="x", padx=14, pady=1 if small else 2)
         box = ctk.CTkFrame(side, fg_color=CARD, corner_radius=12)
         box.pack(side="bottom", fill="x", padx=14, pady=(0, 10), before=logo)
         ctk.CTkLabel(box, text="IMPRESORA", font=self.fonts["small"], text_color=MUTED).pack(
@@ -2103,8 +2645,20 @@ class EkaruApp(ctk.CTk):
         self.sel_info = ctk.CTkLabel(panel, text="", font=self.fonts["small"], text_color=MUTED, wraplength=320,
                                      justify="left", anchor="w")
         self.sel_info.grid(row=3, column=0, sticky="ew", padx=18, pady=(2, 8))
+        drow = ctk.CTkFrame(panel, fg_color="transparent")
+        drow.grid(row=4, column=0, sticky="ew", padx=18, pady=(0, 8))
+        self.date_title = ctk.CTkLabel(drow, text="Fecha de elaboración", font=self.fonts["body"], text_color=TEXT)
+        self.date_title.pack(side="left")
+        ctk.CTkButton(drow, text="Hoy", width=44, height=34, fg_color=CARD, hover_color=LINE,
+                      font=self.fonts["small"], command=self._date_today).pack(side="right")
+        self.date_var = tk.StringVar(value=fecha_texto(effective_day()))
+        self.date_entry = ctk.CTkEntry(drow, textvariable=self.date_var, width=104, height=34, justify="center",
+                                       fg_color=BG, border_color=LINE, font=self.fonts["body"])
+        self.date_entry.pack(side="right", padx=4)
+        self.date_entry.bind("<Return>", lambda e: self._commit_date())
+        self.date_entry.bind("<FocusOut>", lambda e: self._commit_date())
         qrow = ctk.CTkFrame(panel, fg_color="transparent")
-        qrow.grid(row=4, column=0, sticky="ew", padx=18)
+        qrow.grid(row=5, column=0, sticky="ew", padx=18)
         ctk.CTkLabel(qrow, text="Cantidad de etiquetas", font=self.fonts["body"], text_color=TEXT).pack(side="left")
         self.qty_var = tk.StringVar(value="1")
         ctk.CTkButton(qrow, text="+", width=34, height=34, fg_color=CARD, hover_color=LINE, font=self.fonts["btn"],
@@ -2119,9 +2673,9 @@ class EkaruApp(ctk.CTk):
         self.print_button = ctk.CTkButton(panel, text="Imprimir etiquetas", height=44, corner_radius=10,
                                           fg_color=ACCENT, hover_color="#27D3BB", text_color="#04201C",
                                           font=self.fonts["btn"], command=self._print_selected)
-        self.print_button.grid(row=5, column=0, sticky="ew", padx=18, pady=(12, 6))
+        self.print_button.grid(row=6, column=0, sticky="ew", padx=18, pady=(12, 6))
         row = ctk.CTkFrame(panel, fg_color="transparent")
-        row.grid(row=6, column=0, sticky="ew", padx=18, pady=(0, 14))
+        row.grid(row=7, column=0, sticky="ew", padx=18, pady=(0, 14))
         ctk.CTkButton(row, text="Etiqueta de prueba", height=36, fg_color=CARD, hover_color=LINE,
                       font=self.fonts["small"], command=self.print_test).pack(side="left", expand=True, fill="x",
                                                                               padx=(0, 4))
@@ -2137,24 +2691,40 @@ class EkaruApp(ctk.CTk):
     def _refresh_list(self):
         self._search_job = None
         query = normalize(self.search_var.get()).strip()
+        compact = "".join(query.split())
+        # Si se escaneó o se pegó un código completo (13 o 21 dígitos), se busca el producto que ese código nombra,
+        # sea de la numeración nueva (22…, con cualquier fecha) o de las anteriores.
+        scanned = None
+        if compact.isdigit() and len(compact) in (13, 21):
+            scanned = interpretar_codigo(compact).get("producto")
         category = self.category_var.get()
         names = []
         for name, product in PRODUCTS.items():
             if category != "Todas las categorías" and product_category(name) != category:
                 continue
-            if query and query not in normalize(f"{name} {product['detail']} {product['barcode']}"):
-                continue
+            if query and name != scanned:
+                haystack = normalize(f"{name} {product['detail']} {product['barcode']} {print_code(name)}")
+                if query not in haystack and not (compact.isdigit() and compact in haystack.replace(" ", "")):
+                    continue
             names.append(name)
         self.visible = names
         self.count_label.configure(text=f"{len(names)} de {len(PRODUCTS)} productos")
         self.catalog.set_items(names)
+        if scanned in names and scanned != self.selected:
+            self.select_product(scanned)
+            self.catalog.ensure_visible(scanned)
 
     def select_product(self, name):
         self.selected = name
         product = PRODUCTS[name]
+        code = print_code(name)
         self.sel_name.configure(text=name)
-        self.sel_info.configure(text=f"{product['detail']}\n{barcode_kind(print_code(name))}  ·  "
-                                     f"{spaced_code(print_code(name)) or 'sin código'}  ·  {format_short(product['format'])}")
+        self.sel_info.configure(text=f"{product['detail']}\n{barcode_kind(code)}  ·  "
+                                     f"{spaced_code(code) or 'sin código'}  ·  {format_short(product['format'])}")
+        # ¿este código lleva fecha? (dos días seguidos dan códigos distintos)
+        dated = bool(code) and print_code(name, date(2026, 1, 2)) != print_code(name, date(2026, 1, 3))
+        self.date_title.configure(text="Fecha de elaboración" if dated else "Fecha (este código no la usa)",
+                                  text_color=TEXT if dated else MUTED)
         self.qty_var.set(str(self.get_qty(name)))
         self._draw_preview()
         self.catalog.schedule()
@@ -2191,6 +2761,112 @@ class EkaruApp(ctk.CTk):
     def _print_selected(self):
         self._commit_panel_qty()
         self.print_product(self.selected)
+
+    # -- numeración de los códigos y fecha de elaboración -----------------------
+    def _numbering_text(self):
+        return "Códigos nuevos (v2)" if CODE_STATE["numeracion"] == NUMERACION_NUEVA else "Códigos anteriores (2.0)"
+
+    def _codes_changed(self):
+        """Cambió la numeración o la fecha: se rehacen la lista, el panel y la vista previa."""
+        self._refresh_list()
+        self.select_product(self.selected)
+
+    def _apply_numbering(self, mode):
+        set_numbering(mode)
+        self.config_data["numeracion"] = CODE_STATE["numeracion"]
+        self.num_label.configure(text=self._numbering_text())
+        self._codes_changed()
+
+    def _paint_date(self):
+        """Muestra en el campo la fecha que usan los códigos (en ámbar si está fijada a mano)."""
+        self._painted_day = effective_day()
+        self.date_var.set(fecha_texto(self._painted_day))
+        self.date_entry.configure(text_color=WARN_COLOR if CODE_STATE["dia"] else TEXT)
+
+    def _date_today(self):
+        set_elaboration_day(None)
+        self._paint_date()
+        self._codes_changed()
+        self.set_status("Fecha de elaboración: hoy.", "info")
+
+    def _commit_date(self):
+        typed = self.date_var.get().strip()
+        if typed == fecha_texto(effective_day()):
+            return  # sin cambios (también pasa al salir del campo)
+        day, today = parse_user_date(typed), date.today()
+        problem = None
+        if day is None:
+            problem = "Fecha no válida: escribí día/mes/año, por ejemplo 12/11/2026."
+        elif day > today:
+            problem = "La fecha de elaboración no puede ser futura: e-Karú rechazaría esos códigos (regla 4)."
+        elif (today - day).days > MAX_DIAS_ATRAS:
+            problem = f"Esa fecha es de hace más de {MAX_DIAS_ATRAS} días: revisá el año."
+        if problem:
+            self._paint_date()
+            self.set_status(problem, "warn")
+            return
+        set_elaboration_day(day)
+        self._paint_date()
+        self._codes_changed()
+        if CODE_STATE["dia"]:
+            self.set_status(f"Fecha de elaboración fijada en {fecha_texto(day)}: los códigos con fecha usan ese día "
+                            "hasta que toques «Hoy».", "info")
+        else:
+            self.set_status("Fecha de elaboración: hoy.", "info")
+
+    def _day_tick(self):
+        """Pasada la medianoche, si la fecha no está fijada, los códigos pasan solos al día nuevo."""
+        try:
+            if CODE_STATE["dia"] is None and self._painted_day != date.today():
+                self._paint_date()
+                self._codes_changed()
+                self.set_status("Cambió el día: los códigos llevan la fecha de hoy.", "info")
+        except Exception:  # noqa: BLE001 - el reloj nunca debe morir
+            log("ERROR al cambiar de día: " + traceback.format_exc())
+        self.after(30_000, self._day_tick)
+
+    def _numbering_notice(self):
+        """Primera impresión de productos con la numeración nueva: se explica el cambio y se pide confirmarlo.
+
+        Devuelve True si se puede imprimir. «Sí» = numeración nueva · «No» = seguir con la anterior · «Cancelar» = no imprimir.
+        """
+        if self.config_data.get("aviso_numeracion") or CODE_STATE["numeracion"] != NUMERACION_NUEVA:
+            return True
+        example = products_by_number()[min(products_by_number())]
+        new = spaced_code(print_code(example, mode=NUMERACION_NUEVA))
+        old = spaced_code(print_code(example, mode=NUMERACION_ACTUAL))
+        answer = messagebox.askyesnocancel(
+            APP_NAME,
+            "Esta versión imprime los códigos con la numeración nueva del Informe final.\n\n"
+            f"{example}\n   nuevo:   {new}   (22 + Nº de producto + fecha + control)\n   antes:   {old}\n\n"
+            "Las etiquetas viejas que ya están pegadas se reconocen en «Leer un código».\n"
+            "Importante: la caja (e-Karú) tiene que tener cargados los códigos nuevos antes de vender con ellos.\n\n"
+            "Sí = usar la numeración nueva\nNo = seguir con la anterior\nCancelar = no imprimir ahora\n\n"
+            "Se puede cambiar cuando quieras en Diagnóstico → Ajustes.", parent=self)
+        if answer is None:
+            self.set_status("No se imprimió: elegí la numeración de los códigos cuando quieras.", "info")
+            return False
+        if answer is False:
+            self._apply_numbering(NUMERACION_ACTUAL)
+            self.set_status("Se sigue con la numeración anterior (2.0).", "info")
+        self.config_data["aviso_numeracion"] = True
+        self.save_config()
+        log(f"AVISO de numeración confirmado: {CODE_STATE['numeracion']}")
+        return True
+
+    def export_transition(self, parent=None):
+        """Guarda la tabla de transición (47 productos + 9 grupos PADRE) como CSV para Excel."""
+        parent = parent or self
+        path = filedialog.asksaveasfilename(parent=parent, defaultextension=".csv",
+                                            initialfile="tabla_transicion_codigos.csv",
+                                            filetypes=[("CSV para Excel", "*.csv"), ("Todos", "*.*")])
+        if not path:
+            return
+        try:
+            write_transition_csv(path, effective_day())
+            self.set_status(f"✔ Tabla de transición guardada: {path}", "ok")
+        except OSError as error:
+            messagebox.showerror(APP_NAME, f"No se pudo guardar:\n{error}", parent=parent)
 
     # -- impresoras ------------------------------------------------------------
     def refresh_printers(self):
@@ -2261,9 +2937,11 @@ class EkaruApp(ctk.CTk):
 
     def print_product(self, name, quantity=None):
         quantity = quantity or self.get_qty(name)
-        product = PRODUCTS[name]
+        if not self._numbering_notice():
+            return
         job = self.make_job(name, quantity)
-        log(f"CLICK imprimir «{name}» × {quantity} (modo {self.config_data.get('mode')})")
+        log(f"CLICK imprimir «{name}» × {quantity} · código {print_code(name) or '(sin código)'} "
+            f"(numeración {CODE_STATE['numeracion']}, modo {self.config_data.get('mode')})")
         self.submit(job, f"{name} × {quantity}")
 
     def make_job(self, name, quantity):
@@ -2340,7 +3018,7 @@ class EkaruApp(ctk.CTk):
                         return
                 detail = self.backend.send(printer, job, f"E-Karu {label}"[:60])
                 log(f"OK  {label}: {detail}")
-                self._results.put(("sent", label, detail))
+                self._results.put(("sent", label, detail, job.on_success))
             except PrintError as error:
                 log(f"ERR {label}: {error}")
                 self._results.put(("failed", label, str(error)))
@@ -2372,6 +3050,12 @@ class EkaruApp(ctk.CTk):
                 elif kind == "sent":
                     self._busy = False
                     self.set_status(f"✔ {rest[0]}: {rest[1]}", "ok")
+                    callback = rest[2] if len(rest) > 2 else None
+                    if callback:  # por ejemplo, avanzar el contador de Promo Pack solo si el envío salió bien
+                        try:
+                            callback()
+                        except Exception:  # noqa: BLE001
+                            log("ERROR al registrar el envío: " + traceback.format_exc())
                 elif kind == "failed":
                     self._busy = False
                     self.set_status(f"✖ {rest[0]}: {rest[1]}", "error")
@@ -2404,6 +3088,12 @@ class EkaruApp(ctk.CTk):
             mark = "✔" if ok else "▲"
             lines.append(f"  {mark} {name}  —  {text}")
         lines += ["", f"Seleccionada: {self.printer_var.get()}", "Ajustes: " + json.dumps(self.config_data, ensure_ascii=False)]
+        counters = load_counters()
+        lines += ["", f"Numeración de los códigos: {NUMERACION_TEXTO[CODE_STATE['numeracion']]}",
+                  "Fecha de elaboración en los códigos: " + fecha_texto(effective_day())
+                  + (" (fijada a mano)" if CODE_STATE["dia"] else " (hoy)"),
+                  f"Contadores: Promo Pack {counters['pack']} · ID de balde {counters['balde']} · "
+                  f"insumos cargados: {len(load_supplies())}"]
         lines += ["", "Últimos eventos:"]
         try:
             lines += ["  " + l for l in LOG_FILE.read_text(encoding="utf-8").splitlines()[-12:]] or ["  (sin eventos)"]
@@ -2445,6 +3135,7 @@ class EkaruApp(ctk.CTk):
         buttons = (("Etiqueta de prueba", self.print_test), ("Calibrar fila", self.print_calibration),
                    ("Guardar último trabajo", lambda: self.save_prn(self.last_job)),
                    ("Cola de Windows", queue_window), ("Ajustes", self.open_settings), ("Icono en el escritorio", self.make_shortcut),
+                   ("Tabla de transición (CSV)", lambda: self.export_transition(win)),
                    ("Copiar informe", copy),
                    ("Actualizar", lambda: (self.refresh_printers(), win.after(800, refresh))))
         for i, (label, cmd) in enumerate(buttons):
@@ -2489,6 +3180,15 @@ class EkaruApp(ctk.CTk):
         ctk.CTkOptionMenu(body, variable=mode_var, values=["Driver de Windows (como Ctrl+P)", "TSPL directo (RAW)"],
                           fg_color=CARD, button_color=ACCENT_DARK, button_hover_color=ACCENT,
                           dropdown_fg_color=PANEL).pack(fill="x", padx=14)
+        ctk.CTkLabel(body, text="Numeración de los códigos de barras de los productos", font=self.fonts["small"],
+                     text_color=MUTED, anchor="w").pack(fill="x", padx=14, pady=(12, 0))
+        num_var = tk.StringVar(value=NUMERACION_TEXTO[CODE_STATE["numeracion"]])
+        ctk.CTkOptionMenu(body, variable=num_var, values=list(NUMERACION_TEXTO.values()), fg_color=CARD,
+                          button_color=ACCENT_DARK, button_hover_color=ACCENT,
+                          dropdown_fg_color=PANEL).pack(fill="x", padx=14)
+        ctk.CTkLabel(body, text="«Nueva» sigue el Informe final (22 + Nº de producto + fecha). «Anterior» es la de la "
+                                "versión 2.0. Los grupos PADRE y los baldes no cambian.", font=self.fonts["small"],
+                     text_color=MUTED, anchor="w", wraplength=400, justify="left").pack(fill="x", padx=14, pady=(4, 0))
         grid_switch = ctk.CTkSwitch(body, text="Llenar las columnas del rollo (varias etiquetas por fila)",
                                     font=self.fonts["small"], progress_color=ACCENT)
         if self.config_data.get("grid"):
@@ -2517,11 +3217,15 @@ class EkaruApp(ctk.CTk):
                     "strip_accents": bool(accents.get()),
                     "grid": bool(grid_switch.get()),
                     "mode": "gdi" if mode_var.get().startswith("Driver") else "raw",
+                    "numeracion": next((key for key, text in NUMERACION_TEXTO.items() if text == num_var.get()),
+                                       NUMERACION_NUEVA),
+                    "aviso_numeracion": True,  # elegirla acá equivale a confirmar el aviso
                 }
             except ValueError:
                 messagebox.showerror(APP_NAME, "Revisá los valores: deben ser números.", parent=win)
                 return
             self.config_data.update(new)
+            self._apply_numbering(new["numeracion"])
             self.save_config()
             self.set_status("Ajustes guardados.", "ok")
             win.destroy()
@@ -2529,6 +3233,322 @@ class EkaruApp(ctk.CTk):
         ctk.CTkButton(holder, text="Guardar", height=40, fg_color=ACCENT, hover_color="#27D3BB", text_color="#04201C",
                       font=self.fonts["btn"], command=save).pack(fill="x", padx=24, pady=10)
         win.after(150, win.lift)
+
+    # -- herramientas: juego de prueba, etiquetas internas y lector de códigos --------------
+    def print_test_set(self):
+        """Una etiqueta de cada familia (22, 29, 25, 23 y 24), con la marca PRUEBA, para probar los lectores."""
+        items = test_set_labels(effective_day())
+        labels = [item["elementos"] for item in items]
+        page = "grid" if self.config_data.get("grid") else "label"
+        job = PrintJob(labels[0], 20, 30, len(labels), self.config_data, page, labels=labels)
+        job.on_success = lambda: self.set_status(
+            f"✔ Juego de prueba impreso ({len(labels)} etiquetas). Escaneá cada una en «Leer un código»: todas tienen "
+            "que dar «código correcto».", "ok")
+        log("CLICK juego de prueba: " + ", ".join(item["codigo"] for item in items))
+        self.submit(job, f"juego de prueba ({len(labels)} etiquetas)")
+
+    def open_internal_labels(self):
+        """Etiquetas que no son de producto: insumo interno (25), Promo Pack (23) e ID de balde (24)."""
+        kinds = ("Insumo (25)", "Promo Pack (23)", "ID de balde (24)")
+        win = ctk.CTkToplevel(self)
+        win.title("Etiquetas internas")
+        win.geometry("880x640")
+        win.configure(fg_color=BG)
+        win.transient(self)
+        left = ctk.CTkFrame(win, fg_color=PANEL, corner_radius=12, width=450)
+        left.pack(side="left", fill="y", padx=(16, 8), pady=16)
+        left.pack_propagate(False)
+        right = ctk.CTkFrame(win, fg_color=PANEL, corner_radius=12)
+        right.pack(side="left", fill="both", expand=True, padx=(8, 16), pady=16)
+        ctk.CTkLabel(right, text="Vista previa", font=self.fonts["h2"], text_color=TEXT).pack(
+            anchor="w", padx=18, pady=(14, 6))
+        caption = ctk.CTkLabel(right, text="", font=self.fonts["small"], text_color=MUTED, wraplength=330,
+                               justify="left", anchor="w")
+        caption.pack(side="bottom", fill="x", padx=18, pady=(4, 14))
+        canvas = tk.Canvas(right, bg=CARD, highlightthickness=0)
+        canvas.pack(fill="both", expand=True, padx=14)
+
+        ctk.CTkLabel(left, text="Etiquetas internas", font=self.fonts["h2"], text_color=TEXT).pack(
+            anchor="w", padx=18, pady=(14, 6))
+        kind_var = tk.StringVar(value=kinds[0])
+        ctk.CTkSegmentedButton(left, values=list(kinds), variable=kind_var, height=34, selected_color=ACCENT_DARK,
+                               selected_hover_color=ACCENT, unselected_color=CARD, font=self.fonts["small"],
+                               command=lambda value: switch()).pack(fill="x", padx=16, pady=(0, 4))
+        ctk.CTkButton(left, text="Imprimir", height=44, corner_radius=10, fg_color=ACCENT, hover_color="#27D3BB",
+                      text_color="#04201C", font=self.fonts["btn"], command=lambda: do_print()).pack(
+            side="bottom", fill="x", padx=16, pady=(4, 14))
+        note = ctk.CTkLabel(left, text="", font=self.fonts["small"], text_color=WARN_COLOR, wraplength=400,
+                            justify="left", anchor="w")
+        note.pack(side="bottom", fill="x", padx=18)
+        body = ctk.CTkFrame(left, fg_color="transparent")
+        body.pack(side="top", fill="both", expand=True, padx=18)
+
+        def heading(parent, text):
+            ctk.CTkLabel(parent, text=text, font=self.fonts["small"], text_color=MUTED, anchor="w",
+                         justify="left", wraplength=400).pack(fill="x", pady=(10, 0))
+
+        def field(parent, value=""):
+            box = ctk.CTkEntry(parent, height=34, fg_color=CARD, border_color=LINE, font=self.fonts["body"])
+            box.insert(0, value)
+            box.pack(fill="x")
+            box.bind("<KeyRelease>", lambda event: redraw())
+            return box
+
+        def read_int(box, what, low, high):
+            try:
+                value = int(box.get().strip())
+            except ValueError:
+                raise ValueError(f"{what}: escribí un número entero.") from None
+            if not low <= value <= high:
+                raise ValueError(f"{what}: tiene que estar entre {low} y {high}.")
+            return value
+
+        def alive():
+            try:
+                return bool(win.winfo_exists())
+            except tk.TclError:
+                return False
+
+        # -- insumo interno (25)
+        f_supply = ctk.CTkFrame(body, fg_color="transparent")
+        supplies = {}
+        supply_var = tk.StringVar()
+        heading(f_supply, "Insumo (los números son provisorios hasta que Glacé y e-Karú los acuerden)")
+        supply_menu = ctk.CTkOptionMenu(f_supply, variable=supply_var, values=["…"], height=34, fg_color=CARD,
+                                        button_color=ACCENT_DARK, button_hover_color=ACCENT, dropdown_fg_color=PANEL,
+                                        font=self.fonts["small"], dynamic_resizing=False,
+                                        command=lambda value: redraw())
+        supply_menu.pack(fill="x")
+        heading(f_supply, "Fecha de recepción (día/mes/año)")
+        received = field(f_supply, fecha_texto(date.today()))
+        heading(f_supply, "Cantidad de etiquetas")
+        supply_qty = field(f_supply, "1")
+        heading(f_supply, "Agregar un insumo nuevo")
+        add_row = ctk.CTkFrame(f_supply, fg_color="transparent")
+        add_row.pack(fill="x")
+        new_supply = ctk.CTkEntry(add_row, height=34, fg_color=CARD, border_color=LINE, font=self.fonts["body"],
+                                  placeholder_text="Nombre, por ejemplo: Cobertura de chocolate",
+                                  placeholder_text_color=MUTED)
+        new_supply.pack(side="left", fill="x", expand=True)
+        ctk.CTkButton(add_row, text="Agregar", width=84, height=34, fg_color=ACCENT_DARK, hover_color=ACCENT,
+                      font=self.fonts["small"], command=lambda: add_new_supply()).pack(side="left", padx=(8, 0))
+
+        def load_supply_menu(select=None):
+            supplies.clear()
+            for number, name in load_supplies():
+                supplies[f"{number:04d} · {name}"] = (number, name)
+            values = list(supplies)
+            supply_menu.configure(values=values)
+            supply_var.set(next((v for v in values if supplies[v][0] == select), values[0]))
+
+        def add_new_supply():
+            try:
+                number, _ = add_supply(new_supply.get())
+            except (ValueError, OSError) as error:
+                note.configure(text=str(error))
+                return
+            new_supply.delete(0, "end")
+            load_supply_menu(select=number)
+            redraw()
+
+        # -- Promo Pack (23) e ID de balde (24): numeración correlativa
+        serial = {}
+        for key, text in (("pack", "Cada Promo Pack (12 palitos) lleva un número propio y único. Las etiquetas salen "
+                                   "numeradas una tras otra."),
+                          ("balde", "Plan B para el balde: una etiqueta con ID propio, que se pega junto a la de la "
+                                    "balanza. Las etiquetas salen numeradas una tras otra.")):
+            frame = ctk.CTkFrame(body, fg_color="transparent")
+            heading(frame, text)
+            info = ctk.CTkLabel(frame, text="", font=self.fonts["body"], text_color=TEXT, anchor="w", justify="left")
+            info.pack(fill="x", pady=(10, 0))
+            heading(frame, "Empezar en el Nº")
+            start = field(frame, "1")
+            heading(frame, "Cantidad de etiquetas")
+            quantity = field(frame, "1")
+            serial[key] = {"frame": frame, "info": info, "start": start, "qty": quantity}
+
+        def show_counters(reset_start=False):
+            counters = load_counters()
+            for key, parts in serial.items():
+                last = counters[key]
+                parts["info"].configure(text=f"Último número impreso: {last}   ·   Próximo: {last + 1}")
+                if reset_start:
+                    parts["start"].delete(0, "end")
+                    parts["start"].insert(0, str(last + 1))
+
+        def bump(key, last):
+            """Avanza el contador (solo si el envío salió bien y nunca hacia atrás)."""
+            counters = load_counters()
+            if last > counters[key]:
+                counters[key] = last
+                try:
+                    save_counters(counters)
+                except OSError as error:
+                    log(f"No se pudo guardar el contador: {error}")
+                    self.set_status(f"▲ Se imprimió, pero no se pudo guardar el contador: {error}", "warn")
+            if alive():
+                show_counters(reset_start=True)
+                redraw()
+
+        frames = {kinds[0]: f_supply, kinds[1]: serial["pack"]["frame"], kinds[2]: serial["balde"]["frame"]}
+
+        def plan(full=True):
+            """Lo que está en pantalla, listo para imprimir. Lanza ValueError con el motivo si falta algo."""
+            kind = kind_var.get()
+            if kind == kinds[0]:
+                if not supplies:
+                    raise ValueError("Todavía no hay insumos: agregá uno.")
+                number, name = supplies[supply_var.get()]
+                day, today = parse_user_date(received.get()), date.today()
+                if day is None:
+                    raise ValueError("Fecha de recepción: escribí día/mes/año, por ejemplo 12/11/2026.")
+                if day > today:
+                    raise ValueError("La fecha de recepción no puede ser futura.")
+                if (today - day).days > MAX_DIAS_ATRAS:
+                    raise ValueError(f"Esa fecha es de hace más de {MAX_DIAS_ATRAS} días: revisá el año.")
+                copies = read_int(supply_qty, "Cantidad", 1, 999)
+                code = codigo_insumo(number, day)
+                return {"preview": insumo_label_elements(name, code, day), "labels": None, "copies": copies,
+                        "code": code, "text": f"insumo «{name}» × {copies}", "after": None,
+                        "caption": f"{spaced_code(code)}\n25 + Nº de insumo {number:04d} + recepción "
+                                   f"{fecha_texto(day)} + control"}
+            key = "pack" if kind == kinds[1] else "balde"
+            title, subtitle, maker = (("PROMO PACK", "12 PALITOS", codigo_pack) if key == "pack"
+                                      else ("ID DE BALDE", "", codigo_id_balde))
+            first = read_int(serial[key]["start"], "Nº inicial", 0, MAX_NUMERO_CORRELATIVO)
+            copies = read_int(serial[key]["qty"], "Cantidad", 1, 999)
+            last = first + copies - 1
+            if last > MAX_NUMERO_CORRELATIVO:
+                raise ValueError("Se acaban los números disponibles: bajá la cantidad o el Nº inicial.")
+            numbers = range(first, last + 1) if full else [first]
+            labels = [serial_label_elements(title, subtitle, maker(n)) for n in numbers]
+            what = "Promo Pack" if key == "pack" else "ID de balde"
+            caption = spaced_code(maker(first)) + (f"\n… hasta {spaced_code(maker(last))}" if copies > 1 else "")
+            return {"preview": labels[0], "labels": labels if full else None, "copies": copies, "code": maker(first),
+                    "text": f"{what} Nº {first}" + (f" a {last}" if copies > 1 else ""),
+                    "after": lambda: bump(key, last), "caption": caption}
+
+        def redraw(*_):
+            if not alive():
+                return
+            try:
+                chosen = plan(full=False)
+            except ValueError as error:
+                note.configure(text=str(error))
+                canvas.delete("all")
+                caption.configure(text="")
+                return
+            note.configure(text="")
+            width, height = canvas.winfo_width(), canvas.winfo_height()
+            if width >= 40 and height >= 40:
+                draw_label(canvas, chosen["preview"], 160, 240, width, height)
+            caption.configure(text=chosen["caption"])
+
+        def switch():
+            for frame in frames.values():
+                frame.pack_forget()
+            frames[kind_var.get()].pack(fill="both", expand=True)
+            redraw()
+
+        def do_print():
+            try:
+                chosen = plan(full=True)
+            except ValueError as error:
+                note.configure(text=str(error))
+                return
+            note.configure(text="")
+            page = "grid" if self.config_data.get("grid") else "label"
+            if chosen["labels"]:
+                job = PrintJob(chosen["labels"][0], 20, 30, len(chosen["labels"]), self.config_data, page,
+                               labels=chosen["labels"])
+            else:
+                job = PrintJob(chosen["preview"], 20, 30, chosen["copies"], self.config_data, page)
+            job.on_success = chosen["after"]
+            log(f"CLICK etiquetas internas: {chosen['text']} · código {chosen['code']}")
+            self.submit(job, chosen["text"])
+
+        canvas.bind("<Configure>", redraw)
+        load_supply_menu()
+        show_counters(reset_start=True)
+        switch()
+        win.after(150, win.lift)
+        win.after(250, redraw)
+
+    def open_reader(self):
+        """Lee un código como lo hará e-Karú: las reglas de lectura del Informe final, en el mismo orden."""
+        win = ctk.CTkToplevel(self)
+        win.title("Leer un código")
+        win.geometry("740x660")
+        win.configure(fg_color=BG)
+        win.transient(self)
+        ctk.CTkLabel(win, text="Leer un código", font=self.fonts["title"], text_color=TEXT).pack(
+            anchor="w", padx=20, pady=(16, 2))
+        ctk.CTkLabel(win, text="Escaneá una etiqueta (o escribí el número) y apretá Enter. Se aplican las reglas de "
+                               "lectura del Informe final, en el mismo orden que usará e-Karú.",
+                     font=self.fonts["small"], text_color=MUTED, wraplength=680, justify="left", anchor="w").pack(
+            fill="x", padx=20, pady=(0, 10))
+        row = ctk.CTkFrame(win, fg_color="transparent")
+        row.pack(fill="x", padx=20)
+        var = tk.StringVar()
+        entry = ctk.CTkEntry(row, textvariable=var, height=44, fg_color=CARD, border_color=LINE,
+                             font=ctk.CTkFont(family=MONO_FONT, size=18), placeholder_text="Código de barras…",
+                             placeholder_text_color=MUTED)
+        entry.pack(side="left", fill="x", expand=True)
+        ctk.CTkButton(row, text="Leer", width=90, height=44, fg_color=ACCENT, hover_color="#27D3BB",
+                      text_color="#04201C", font=self.fonts["btn"], command=lambda: read()).pack(side="left", padx=(8, 0))
+        verdict = ctk.CTkFrame(win, fg_color=CARD, corner_radius=12)
+        verdict.pack(fill="x", padx=20, pady=(12, 8))
+        headline = ctk.CTkLabel(verdict, text="Esperando un código…", font=self.fonts["h2"], text_color=MUTED,
+                                anchor="w", justify="left", wraplength=660)
+        headline.pack(fill="x", padx=16, pady=(12, 2))
+        details = ctk.CTkLabel(verdict, text="", font=self.fonts["body"], text_color=TEXT, anchor="w",
+                               justify="left", wraplength=660)
+        details.pack(fill="x", padx=16, pady=(0, 12))
+        ctk.CTkLabel(win, text="Lecturas de esta sesión", font=self.fonts["small"], text_color=MUTED).pack(
+            anchor="w", padx=20)
+        bottom = ctk.CTkFrame(win, fg_color="transparent")
+        bottom.pack(side="bottom", fill="x", padx=20, pady=(0, 16))
+        history = ctk.CTkTextbox(win, fg_color=PANEL, text_color=TEXT,
+                                 font=ctk.CTkFont(family=MONO_FONT, size=12), wrap="none")
+        history.pack(side="top", fill="both", expand=True, padx=20, pady=(2, 8))
+        history.configure(state="disabled")
+        styles = {"ok": (OK_COLOR, "✔", "CÓDIGO CORRECTO"), "viejo": (WARN_COLOR, "▲", "CÓDIGO VIEJO"),
+                  "rechazado": (ERR_COLOR, "✖", "RECHAZADO"), "externo": (ACCENT, "●", "CÓDIGO EXTERNO")}
+
+        def write_history(text=None):
+            history.configure(state="normal")
+            if text is None:
+                history.delete("1.0", "end")
+            else:
+                history.insert("1.0", text + "\n")
+            history.configure(state="disabled")
+
+        def read(_event=None):
+            if not var.get().strip():
+                return
+            result = interpretar_codigo(var.get(), insumos=dict(load_supplies()))
+            color, mark, title = styles[result["estado"]]
+            headline.configure(text=f"{mark} {title} · {result['tipo']}", text_color=color)
+            lines = [spaced_code(result["codigo"]) + (f"      [{result['regla']}]" if result["regla"] else "")]
+            lines += [f"{name}: {value}" for name, value in result["campos"]]
+            if result["mensaje"]:
+                lines += ["", result["mensaje"]]
+            details.configure(text="\n".join(lines))
+            summary = "; ".join(f"{name}: {value}" for name, value in result["campos"][:2])
+            write_history(f"{datetime.now():%H:%M:%S}  {mark} {spaced_code(result['codigo']):<30} "
+                          f"{result['tipo']}" + (f" · {summary}" if summary else ""))
+            log(f"LECTOR {result['codigo']}: {result['estado']} · {result['tipo']} ({result['regla']})")
+            var.set("")
+            entry.focus_set()
+
+        ctk.CTkButton(bottom, text="Tabla de transición (CSV)", height=34, fg_color=CARD, hover_color=LINE,
+                      font=self.fonts["small"], command=lambda: self.export_transition(win)).pack(side="left")
+        ctk.CTkButton(bottom, text="Limpiar lecturas", height=34, fg_color=CARD, hover_color=LINE,
+                      font=self.fonts["small"], command=lambda: write_history(None)).pack(side="right")
+        entry.bind("<Return>", read)
+        entry.bind("<KP_Enter>", read)
+        win.after(150, win.lift)
+        win.after(300, entry.focus_set)
 
     # -- página editor ---------------------------------------------------------
     def _build_editor_page(self):
