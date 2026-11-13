@@ -1,5 +1,13 @@
 # Cambios
 
+## 2.2.0 · 13/11/2026 · Etiko
+
+- **Nuevo nombre: Etiko** (antes «E-Karú Etiquetas»; e-Karú es la caja). Icono nuevo (`etiko.ico`); al abrir la 2.2 se crea «Etiko» en el escritorio y se quita el acceso viejo «E-Karu».
+- **Diseño nuevo**: grafito con acento coral, títulos en Bahnschrift, tarjetas y botones redondeados, barra lateral ordenada (Trabajo / Herramientas / Impresora). En el catálogo solo la fila elegida lleva el botón «Imprimir» lleno; las demás, uno tonal.
+- **Accesibilidad (WCAG 2.2 AA)**: contraste ≥ 4,5:1 en textos y botones, botones − / + más grandes, borde coral en el campo con el foco, la fila elegida se marca también con una franja, texto chico a 12 px.
+- El buscador vuelve a mostrar su texto de ayuda.
+- Sin cambios en códigos, impresión ni archivos de configuración.
+
 ## 2.1.0 · 12/11/2026 · Numeración v2 del Informe final
 
 ### Nuevo

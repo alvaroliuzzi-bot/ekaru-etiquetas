@@ -13,7 +13,7 @@ echo Usando: %PYTHONC%
 "%PYTHONC%" --version
 "%PYTHONC%" -c "import customtkinter; print('customtkinter', customtkinter.__version__)"
 echo.
-echo Iniciando E-Karu con consola visible. Los errores aparecen aqui.
+echo Iniciando Etiko con consola visible. Los errores aparecen aqui.
 "%PYTHONC%" "%~dp0app.py"
 echo.
 echo La aplicacion se cerro (codigo %errorlevel%).

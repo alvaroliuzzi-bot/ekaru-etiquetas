@@ -115,6 +115,9 @@ class Widget:
     def bind(self, sequence, func, add=None):
         self._bindings[sequence] = func
 
+    def bind_class(self, class_name, sequence, func, add=None):
+        self._bindings[(class_name, sequence)] = func
+
     def after(self, ms, func=None, *args):
         if func is not None:
             PENDING.append((ms, func, args))
@@ -297,6 +300,9 @@ class Canvas(Widget):
 
     def create_window(self, *a, **kw):
         return self._new("window", *a, **kw)
+
+    def create_polygon(self, *a, **kw):
+        return self._new("polygon", *a, **kw)
 
     def delete(self, *tags):
         if "all" in tags:

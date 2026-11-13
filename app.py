@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""E-Karú Etiquetas — generador e impresor de etiquetas (HPRT HT400, TSPL/RAW).
+"""Etiko — etiquetas de Glacé para la impresora HPRT HT400 (TSPL/RAW). Antes: «E-Karú Etiquetas».
 
 Cambios v2.1: numeración de códigos v2 del Informe final (22 = producto + Nº de producto + fecha de
 elaboración, 23 = Promo Pack, 24 = ID de balde, 25 = insumo interno, 29 = grupo PADRE sin cambios),
@@ -34,8 +34,9 @@ from tkinter import filedialog, messagebox, simpledialog
 from tkinter import font as tkfont
 
 
-APP_NAME = "E-Karú Etiquetas"
-VERSION = "v2.1.0"
+APP_NAME = "Etiko"
+APP_TAGLINE = "Etiquetas Glacé"
+VERSION = "v2.2.0"
 BASE_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 DESIGNS_DIR = BASE_DIR / "diseños"
 QUANTITIES_FILE = BASE_DIR / "cantidades_impresion.json"
@@ -987,7 +988,7 @@ class WinSpooler:
             return False, "Windows informa: " + ", ".join(problems)
         return True, "Lista"
 
-    def send(self, printer, job, title="E-Karu etiqueta"):
+    def send(self, printer, job, title="Etiko etiqueta"):
         if not printer:
             raise PrintError("No hay impresora seleccionada.")
         if job.config.get("mode", "gdi") == "gdi":
@@ -1218,7 +1219,7 @@ class FileBackend:
     def status(self, printer):
         return True, "Lista"
 
-    def send(self, printer, job, title="E-Karu etiqueta"):
+    def send(self, printer, job, title="Etiko etiqueta"):
         data = job.data
         try:
             self.directory.mkdir(parents=True, exist_ok=True)
@@ -1246,7 +1247,7 @@ class SimBackend(FileBackend):
     def status(self, printer):
         return self.state
 
-    def send(self, printer, job, title="E-Karu etiqueta"):
+    def send(self, printer, job, title="Etiko etiqueta"):
         if self.fail_with:
             raise PrintError(self.fail_with)
         self.jobs.append((printer, job.data))
@@ -1988,31 +1989,34 @@ def strip_calibration_elements(config):
 # --------------------------------------------------------------------------- #
 #  Icono en el escritorio
 # --------------------------------------------------------------------------- #
-SHORTCUT_FLAG = BASE_DIR / ".acceso_directo_creado"
+SHORTCUT_FLAG = BASE_DIR / ".acceso_directo_etiko"
+ICON_FILE = BASE_DIR / "etiko.ico"
 
 
 def create_desktop_shortcut():
-    """Crea «E-Karu.lnk» en el escritorio (con icono propio). Devuelve (ok, mensaje)."""
+    """Crea «Etiko.lnk» en el escritorio (con icono propio) y quita el «E-Karu.lnk» que creaba la versión anterior.
+    Devuelve (ok, mensaje)."""
     if os.name != "nt":
         return False, "Solo disponible en Windows."
-    icon_src = BASE_DIR / "ekaru.ico"
-    local = Path(os.environ.get("LOCALAPPDATA", str(BASE_DIR))) / "EKaru"
+    local = Path(os.environ.get("LOCALAPPDATA", str(BASE_DIR))) / "Etiko"
     try:
         local.mkdir(parents=True, exist_ok=True)
-        icon = local / "ekaru.ico"
-        if icon_src.exists():
-            icon.write_bytes(icon_src.read_bytes())
+        icon = local / "etiko.ico"
+        if ICON_FILE.exists():
+            icon.write_bytes(ICON_FILE.read_bytes())
         exe = Path(sys.executable)
         pythonw = exe.with_name("pythonw.exe")
         target = pythonw if pythonw.exists() else exe
         script = (
             "$d=[Environment]::GetFolderPath('DesktopDirectory');"
-            "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($d+'\\E-Karu.lnk');"
+            "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($d+'\\Etiko.lnk');"
             f"$s.TargetPath='{target}';"
             f"$q=[char]34;$s.Arguments=$q+'{BASE_DIR / 'app.py'}'+$q;"
             f"$s.WorkingDirectory='{BASE_DIR}';"
             f"$s.IconLocation='{icon}';"
-            "$s.Description='E-Karu Etiquetas';$s.Save();Write-Output $d"
+            "$s.Description='Etiko - etiquetas Glace';$s.Save();"
+            "$o=$d+'\\E-Karu.lnk';if(Test-Path $o){Remove-Item $o -ErrorAction SilentlyContinue};"
+            "Write-Output $d"
         )
         result = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
                                 capture_output=True, text=True, timeout=40, creationflags=0x08000000)
@@ -2031,22 +2035,52 @@ def create_desktop_shortcut():
 # --------------------------------------------------------------------------- #
 #  Interfaz
 # --------------------------------------------------------------------------- #
-BG = "#071F1C"
-PANEL = "#0D2F2B"
-CARD = "#12403A"
-CARD_HOVER = "#17504A"
-LINE = "#1E5C54"
-ACCENT = "#1FB8A2"
-ACCENT_DARK = "#158F7E"
-TEXT = "#E8F6F3"
-MUTED = "#8FBDB4"
-OK_COLOR = "#46D69A"
-WARN_COLOR = "#F5B13D"
-ERR_COLOR = "#FF6B6B"
+# Paleta «tinta y papel»: grafito con un tinte frío, etiquetas blancas y un acento coral.
+# Contrastes (WCAG 2.2 AA): TEXT/MUTED sobre PANEL y CARD ≥ 6:1; ON_ACCENT sobre ACCENT ≥ 8:1;
+# texto claro sobre ACCENT_DARK ≥ 4.8:1.
+BG = "#101418"
+PANEL = "#171C22"
+CARD = "#1F262E"
+CARD_HOVER = "#28313B"
+LINE = "#343E4A"
+ACCENT = "#FF8A5B"
+ACCENT_HOVER = "#FFA27D"
+ACCENT_DARK = "#B23C10"
+ON_ACCENT = "#1A0E08"
+ACCENT_TINT = "#2F2421"
+ACCENT_LINE = "#5A3A2E"
+TEXT = "#F1F4F7"
+MUTED = "#A3AEBB"
+OK_COLOR = "#4ADE80"
+WARN_COLOR = "#FBBF24"
+ERR_COLOR = "#F87171"
 TICKET = "#FFFFFF"
 INK = "#111827"
+SHADOW = "#06080B"
 UI_FONT = "Segoe UI"
+DISPLAY_FONT = "Segoe UI Semibold"
 MONO_FONT = "Consolas"
+
+
+def resolve_fonts():
+    """Elige las fuentes instaladas (Bahnschrift para títulos en Windows 10/11; si no, Segoe UI)."""
+    global UI_FONT, DISPLAY_FONT, MONO_FONT
+    try:
+        available = set(tkfont.families())
+    except tk.TclError:
+        return
+    UI_FONT = next((f for f in ("Segoe UI", "Inter", "DejaVu Sans") if f in available), UI_FONT)
+    DISPLAY_FONT = next((f for f in ("Bahnschrift SemiBold", "Bahnschrift", "Segoe UI Semibold", UI_FONT)
+                         if f in available), UI_FONT)
+    MONO_FONT = next((f for f in ("Cascadia Mono", "Consolas", "DejaVu Sans Mono") if f in available), MONO_FONT)
+
+
+def round_rect(canvas, x0, y0, x1, y1, r, **kw):
+    """Rectángulo con esquinas redondeadas en un Canvas (polígono suavizado)."""
+    r = max(0, min(r, (x1 - x0) / 2, (y1 - y0) / 2))
+    points = [x0 + r, y0, x1 - r, y0, x1, y0, x1, y0 + r, x1, y1 - r, x1, y1, x1 - r, y1, x0 + r, y1,
+              x0, y1, x0, y1 - r, x0, y0 + r, x0, y0]
+    return canvas.create_polygon(points, smooth=True, **kw)
 
 
 _MONO = []
@@ -2077,8 +2111,8 @@ def draw_label(canvas, elements, label_w, label_h, box_w, box_h, pad=14):
     ox = (box_w - label_w * scale) / 2
     oy = (box_h - label_h * scale) / 2
     canvas.create_rectangle(ox + 3, oy + 4, ox + label_w * scale + 3, oy + label_h * scale + 4,
-                            fill="#041412", outline="")
-    canvas.create_rectangle(ox, oy, ox + label_w * scale, oy + label_h * scale, fill=TICKET, outline="#CBD5E1")
+                            fill=SHADOW, outline="")
+    canvas.create_rectangle(ox, oy, ox + label_w * scale, oy + label_h * scale, fill=TICKET, outline="#D6DCE3")
     for e in elements:
         if e[0] == "text":
             _, x, y, font, text, bold = e
@@ -2156,7 +2190,7 @@ class CatalogList(tk.Canvas):
         px = lambda n: -max(8, int(n * s))
         self.f_name = tkfont.Font(family=UI_FONT, size=px(15), weight="bold")
         self.f_detail = tkfont.Font(family=UI_FONT, size=px(12))
-        self.f_small = tkfont.Font(family=UI_FONT, size=px(11))
+        self.f_small = tkfont.Font(family=UI_FONT, size=px(12))
         self.f_btn = tkfont.Font(family=UI_FONT, size=px(13), weight="bold")
         self.f_code = tkfont.Font(family=MONO_FONT, size=px(10))
         self.vbar = ctk.CTkScrollbar(master, command=self._on_scrollbar, fg_color=PANEL,
@@ -2304,13 +2338,15 @@ class CatalogList(tk.Canvas):
         selected = name == self.app.selected
         x0, x1, y0, y1 = 6 * s, width - 6 * s, y + 4 * s, y + rh - 4 * s
         fill = CARD_HOVER if (name == self.hover and not selected) else CARD
-        self._bg[name] = self.create_rectangle(x0, y0, x1, y1, fill=fill, outline=ACCENT if selected else LINE,
-                                               width=2 if selected else 1)
+        self._bg[name] = round_rect(self, x0, y0, x1, y1, 12 * s, fill=fill,
+                                    outline=ACCENT if selected else LINE, width=2 if selected else 1)
+        if selected:  # franja coral a la izquierda: la selección no depende solo del color del borde
+            round_rect(self, x0 + 2 * s, y0 + 10 * s, x0 + 6 * s, y1 - 10 * s, 2 * s, fill=ACCENT, outline="")
         self.hits.append((x0, y0, x1, y1, "row", name))
         # etiqueta blanca con código de barras real
         tw = int(150 * s)
         tx0, tx1, ty0, ty1 = x0 + 8 * s, x0 + 8 * s + tw, y0 + 7 * s, y1 - 7 * s
-        self.create_rectangle(tx0, ty0, tx1, ty1, fill=TICKET, outline="")
+        round_rect(self, tx0, ty0, tx1, ty1, 5 * s, fill=TICKET, outline="")
         inner = int(tw - 20 * s)
         bar_bottom = ty1 - 15 * s
         bar_h = max(8, int(bar_bottom - (ty0 + 5 * s)))
@@ -2335,10 +2371,12 @@ class CatalogList(tk.Canvas):
         cy = (y0 + y1) / 2
         bx1 = x1 - 12 * s
         bx0 = bx1 - bw
-        self.create_rectangle(bx0, cy - bh / 2, bx1, cy + bh / 2, fill=ACCENT, outline="", tags="btn")
-        self.create_text((bx0 + bx1) / 2, cy, text="Imprimir", fill="#04201C", font=self.f_btn)
+        # solo la fila elegida lleva el botón lleno; las demás, uno tonal (menos ruido, misma zona de clic)
+        round_rect(self, bx0, cy - bh / 2, bx1, cy + bh / 2, 9 * s, fill=ACCENT if selected else ACCENT_TINT,
+                   outline="" if selected else ACCENT_LINE, tags="btn")
+        self.create_text((bx0 + bx1) / 2, cy, text="Imprimir", fill=ON_ACCENT if selected else ACCENT, font=self.f_btn)
         self.hits.append((bx0, cy - bh / 2, bx1, cy + bh / 2, "print", name))
-        sw = int(28 * s)
+        sw = int(34 * s)
         nw = int(42 * s)
         plus1 = bx0 - 14 * s
         plus0 = plus1 - sw
@@ -2347,10 +2385,10 @@ class CatalogList(tk.Canvas):
         minus1 = num0 - 2 * s
         minus0 = minus1 - sw
         for a, b, label, act in ((minus0, minus1, "−", "minus"), (plus0, plus1, "+", "plus")):
-            self.create_rectangle(a, cy - bh / 2, b, cy + bh / 2, fill=PANEL, outline=LINE)
+            round_rect(self, a, cy - bh / 2, b, cy + bh / 2, 9 * s, fill=PANEL, outline=LINE)
             self.create_text((a + b) / 2, cy, text=label, fill=TEXT, font=self.f_btn)
             self.hits.append((a, cy - bh / 2, b, cy + bh / 2, act, name))
-        self.create_rectangle(num0, cy - bh / 2, num1, cy + bh / 2, fill=BG, outline=LINE)
+        round_rect(self, num0, cy - bh / 2, num1, cy + bh / 2, 9 * s, fill=BG, outline=LINE)
         self.create_text((num0 + num1) / 2, cy, text=str(self.app.get_qty(name)), fill=TEXT, font=self.f_btn)
         self.hits.append((num0, cy - bh / 2, num1, cy + bh / 2, "qty", name))
         # textos
@@ -2358,11 +2396,11 @@ class CatalogList(tk.Canvas):
         room = minus0 - 16 * s - text_x
         self.create_text(text_x, y0 + 10 * s, anchor="nw", text=self._fit(name, self.f_name, room),
                          fill=TEXT, font=self.f_name)
-        self.create_text(text_x, y0 + 32 * s, anchor="nw", text=self._fit(product["detail"], self.f_detail, room),
+        self.create_text(text_x, y0 + 31 * s, anchor="nw", text=self._fit(product["detail"], self.f_detail, room),
                          fill=MUTED, font=self.f_detail)
         meta = f"{barcode_kind(print_code(name))}  ·  {format_short(product['format'])}"
-        self.create_text(text_x, y0 + 51 * s, anchor="nw", text=self._fit(meta, self.f_small, room),
-                         fill=ACCENT, font=self.f_small)
+        self.create_text(text_x, y0 + 50 * s, anchor="nw", text=self._fit(meta, self.f_small, room),
+                         fill=MUTED, font=self.f_small)
 
     # -- interacción -----------------------------------------------------------
     def _hit(self, x, y):
@@ -2451,7 +2489,8 @@ class EkaruApp(ctk.CTk):
     def __init__(self, backend=None):
         super().__init__()
         ctk.set_appearance_mode("dark")
-        self.title(f"{APP_NAME}  {VERSION}")
+        resolve_fonts()
+        self.title(f"{APP_NAME} · {APP_TAGLINE}  {VERSION}")
         self.configure(fg_color=BG)
         self.s = float(self._get_window_scaling())
         self.backend = backend or make_backend()
@@ -2478,8 +2517,9 @@ class EkaruApp(ctk.CTk):
         if self.compact:
             self.after(200, self._maximize)
         self.fonts = {
-            "title": ctk.CTkFont(family=UI_FONT, size=22, weight="bold"),
+            "title": ctk.CTkFont(family=DISPLAY_FONT, size=24),
             "h2": ctk.CTkFont(family=UI_FONT, size=16, weight="bold"),
+            "label": ctk.CTkFont(family=UI_FONT, size=11, weight="bold"),
             "body": ctk.CTkFont(family=UI_FONT, size=13),
             "small": ctk.CTkFont(family=UI_FONT, size=12),
             "btn": ctk.CTkFont(family=UI_FONT, size=14, weight="bold"),
@@ -2499,6 +2539,7 @@ class EkaruApp(ctk.CTk):
         self.status_label = ctk.CTkLabel(self.status_bar, text="", anchor="w", font=self.fonts["small"],
                                          text_color=MUTED)
         self.status_label.pack(fill="x", padx=16, pady=6)
+        self._install_focus_ring()
         self.show_page("catalogo")
         self._paint_date()
         self._refresh_list()
@@ -2528,7 +2569,7 @@ class EkaruApp(ctk.CTk):
         self.set_status(("✔ " if ok else "✖ ") + text, "ok" if ok else "error")
 
     def _set_icon(self):
-        icon = BASE_DIR / "ekaru.ico"
+        icon = ICON_FILE
         if os.name == "nt" and icon.exists():
             try:
                 self.iconbitmap(str(icon))
@@ -2536,37 +2577,74 @@ class EkaruApp(ctk.CTk):
                 pass
 
     # -- barra lateral ---------------------------------------------------------
+    def _install_focus_ring(self):
+        """Borde coral y más grueso en el campo que tiene el foco (se ve dónde se escribe; WCAG 2.4.11)."""
+        def ring(event, on):
+            owner = getattr(event.widget, "master", None)
+            if isinstance(owner, ctk.CTkEntry):
+                try:
+                    owner.configure(border_color=ACCENT if on else LINE, border_width=2 if on else 1)
+                except (tk.TclError, ValueError):
+                    pass
+        self.bind_class("Entry", "<FocusIn>", lambda e: ring(e, True), add="+")
+        self.bind_class("Entry", "<FocusOut>", lambda e: ring(e, False), add="+")
+
+    def _brand_mark(self, parent, size):
+        """Marca de Etiko: una etiqueta blanca con código de barras sobre un cuadrado coral."""
+        c = tk.Canvas(parent, width=size, height=size, bg=PANEL, highlightthickness=0, bd=0)
+        round_rect(c, 0, 0, size, size, size * 0.26, fill=ACCENT, outline="")
+        x0, y0, x1, y1 = size * 0.2, size * 0.27, size * 0.8, size * 0.73
+        round_rect(c, x0, y0, x1, y1, size * 0.08, fill=TICKET, outline="")
+        bars = (1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1)
+        step = (x1 - x0 - size * 0.16) / len(bars)
+        for i, on in enumerate(bars):
+            if on:
+                bx = x0 + size * 0.08 + i * step
+                c.create_rectangle(bx, y0 + size * 0.1, bx + step, y1 - size * 0.1, fill=ON_ACCENT, outline="")
+        return c
+
+    # -- barra lateral ---------------------------------------------------------
     def _build_sidebar(self):
-        side = ctk.CTkFrame(self, fg_color=PANEL, corner_radius=0, width=240)
+        side = ctk.CTkFrame(self, fg_color=PANEL, corner_radius=0, width=244)
         side.grid(row=0, column=0, sticky="nsew")
         side.grid_propagate(False)
         small = getattr(self, "compact", False)
-        logo = ctk.CTkLabel(side, text="E-Karú", font=ctk.CTkFont(family=UI_FONT, size=24 if small else 30,
-                                                                   weight="bold"), text_color=ACCENT)
-        logo.pack(anchor="w", padx=22, pady=(14 if small else 26, 0))
-        ctk.CTkLabel(side, text=f"Etiquetas  ·  {VERSION}", font=self.fonts["small"],
-                     text_color=MUTED).pack(anchor="w", padx=22, pady=(0, 2))
-        self.num_label = ctk.CTkLabel(side, text=self._numbering_text(), font=self.fonts["small"], text_color=ACCENT)
-        self.num_label.pack(anchor="w", padx=22, pady=(0, 10 if small else 18))
+        brand = ctk.CTkFrame(side, fg_color="transparent")
+        brand.pack(fill="x", padx=20, pady=(14 if small else 24, 4 if small else 8))
+        logo = brand
+        self._brand_mark(brand, int((34 if small else 42) * self.s)).pack(side="left")
+        names = ctk.CTkFrame(brand, fg_color="transparent")
+        names.pack(side="left", padx=(12, 0))
+        ctk.CTkLabel(names, text=APP_NAME, font=ctk.CTkFont(family=DISPLAY_FONT, size=24 if small else 28),
+                     text_color=TEXT, height=28 if small else 34).pack(anchor="w")
+        ctk.CTkLabel(names, text=f"{APP_TAGLINE} · {VERSION}", font=self.fonts["small"], text_color=MUTED,
+                     height=16).pack(anchor="w")
+        chip = ctk.CTkFrame(side, fg_color=CARD, corner_radius=8)
+        chip.pack(anchor="w", padx=20, pady=(4, 10 if small else 18))
+        self.num_label = ctk.CTkLabel(chip, text=self._numbering_text(), font=self.fonts["small"], text_color=ACCENT,
+                                      height=22)
+        self.num_label.pack(padx=10, pady=2)
         self.nav = {}
+        ctk.CTkLabel(side, text="TRABAJO", font=self.fonts["label"], text_color=MUTED, height=18).pack(
+            anchor="w", padx=22, pady=(0, 2))
         for key, label in (("catalogo", "Catálogo de productos"), ("editor", "Editor de etiquetas")):
-            button = ctk.CTkButton(side, text=label, anchor="w", height=32 if small else 42, corner_radius=10,
+            button = ctk.CTkButton(side, text=label, anchor="w", height=34 if small else 42, corner_radius=10,
                                    font=self.fonts["btn"], fg_color="transparent", hover_color=CARD,
-                                   text_color=TEXT, command=lambda k=key: self.show_page(k))
-            button.pack(fill="x", padx=14, pady=2 if small else 3)
+                                   text_color=TEXT, border_spacing=12, command=lambda k=key: self.show_page(k))
+            button.pack(fill="x", padx=12, pady=1 if small else 2)
             self.nav[key] = button
-        ctk.CTkLabel(side, text="HERRAMIENTAS", font=self.fonts["small"], text_color=MUTED).pack(
-            anchor="w", padx=22, pady=(4 if small else 10, 0))
+        ctk.CTkLabel(side, text="HERRAMIENTAS", font=self.fonts["label"], text_color=MUTED,
+                     height=18).pack(anchor="w", padx=22, pady=(6 if small else 14, 2))
         for label, command in (("Etiquetas internas", self.open_internal_labels),
                                ("Leer un código", self.open_reader),
                                ("Juego de prueba", self.print_test_set)):
-            ctk.CTkButton(side, text=label, anchor="w", height=30 if small else 40, corner_radius=10,
-                          font=self.fonts["btn"], fg_color="transparent", hover_color=CARD, text_color=TEXT,
-                          command=command).pack(fill="x", padx=14, pady=1 if small else 2)
+            ctk.CTkButton(side, text=label, anchor="w", height=32 if small else 40, corner_radius=10,
+                          font=self.fonts["body"], fg_color="transparent", hover_color=CARD, text_color=TEXT,
+                          border_spacing=12, command=command).pack(fill="x", padx=12, pady=1)
         box = ctk.CTkFrame(side, fg_color=CARD, corner_radius=12)
         box.pack(side="bottom", fill="x", padx=14, pady=(0, 10), before=logo)
-        ctk.CTkLabel(box, text="IMPRESORA", font=self.fonts["small"], text_color=MUTED).pack(
-            anchor="w", padx=14, pady=(8, 2))
+        ctk.CTkLabel(box, text="IMPRESORA", font=self.fonts["label"], text_color=MUTED).pack(
+            anchor="w", padx=14, pady=(10, 2))
         self.printer_var = tk.StringVar(value="Buscando…")
         self.printer_menu = ctk.CTkOptionMenu(box, variable=self.printer_var, values=["Buscando…"], height=34,
                                               fg_color=PANEL, button_color=ACCENT_DARK,
@@ -2578,8 +2656,8 @@ class EkaruApp(ctk.CTk):
                                           wraplength=190, justify="left", anchor="w")
         self.printer_state.pack(fill="x", padx=14, pady=(2, 0))
         self.mode_var = tk.StringVar(value="Driver" if self.config_data.get("mode", "gdi") == "gdi" else "TSPL")
-        ctk.CTkLabel(box, text="MODO DE IMPRESIÓN", font=self.fonts["small"], text_color=MUTED).pack(
-            anchor="w", padx=14, pady=(2, 2))
+        ctk.CTkLabel(box, text="MODO DE IMPRESIÓN", font=self.fonts["label"], text_color=MUTED).pack(
+            anchor="w", padx=14, pady=(4, 2))
         ctk.CTkSegmentedButton(box, values=["Driver", "TSPL"], variable=self.mode_var, height=30,
                                selected_color=ACCENT_DARK, selected_hover_color=ACCENT, unselected_color=PANEL,
                                font=self.fonts["small"], command=self._mode_changed).pack(fill="x", padx=12)
@@ -2597,7 +2675,8 @@ class EkaruApp(ctk.CTk):
             else:
                 frame.grid_forget()
         for name, button in self.nav.items():
-            button.configure(fg_color=CARD if name == key else "transparent")
+            active = name == key
+            button.configure(fg_color=CARD if active else "transparent", text_color=ACCENT if active else TEXT)
 
     # -- página catálogo -------------------------------------------------------
     def _build_catalog_page(self):
@@ -2617,11 +2696,12 @@ class EkaruApp(ctk.CTk):
                           dropdown_fg_color=PANEL, font=self.fonts["body"],
                           command=lambda v: self._refresh_list()).pack(side="right", padx=8)
         self.search_var = tk.StringVar()
-        self.search_entry = ctk.CTkEntry(top, textvariable=self.search_var, width=300, height=36,
+        self.search_entry = ctk.CTkEntry(top, width=300, height=36,
                                          placeholder_text="Buscar producto o código de barras…", placeholder_text_color=MUTED,
                                          fg_color=CARD, border_color=LINE, font=self.fonts["body"])
         self.search_entry.pack(side="right", padx=8)
         self.search_entry.bind("<KeyRelease>", self._on_search_key)
+        # sin textvariable para que se vea el texto de ayuda; search_var se copia del campo al escribir
         listbox = ctk.CTkFrame(page, fg_color=PANEL, corner_radius=12)
         listbox.grid(row=1, column=0, sticky="nsew", padx=(20, 10), pady=(0, 16))
         listbox.grid_columnconfigure(0, weight=1)
@@ -2671,7 +2751,7 @@ class EkaruApp(ctk.CTk):
         self.qty_entry.bind("<Return>", lambda e: self._commit_panel_qty())
         self.qty_entry.bind("<FocusOut>", lambda e: self._commit_panel_qty())
         self.print_button = ctk.CTkButton(panel, text="Imprimir etiquetas", height=44, corner_radius=10,
-                                          fg_color=ACCENT, hover_color="#27D3BB", text_color="#04201C",
+                                          fg_color=ACCENT, hover_color=ACCENT_HOVER, text_color=ON_ACCENT,
                                           font=self.fonts["btn"], command=self._print_selected)
         self.print_button.grid(row=6, column=0, sticky="ew", padx=18, pady=(12, 6))
         row = ctk.CTkFrame(panel, fg_color="transparent")
@@ -2684,6 +2764,9 @@ class EkaruApp(ctk.CTk):
                                                                                      fill="x", padx=(4, 0))
 
     def _on_search_key(self, _event=None):
+        text = self.search_entry.get()
+        if self.search_var.get() != text:
+            self.search_var.set(text)
         if self._search_job:
             self.after_cancel(self._search_job)
         self._search_job = self.after(120, self._refresh_list)
@@ -3016,7 +3099,7 @@ class EkaruApp(ctk.CTk):
                         log(f"BLOQUEADO {label}: {text}")
                         self._results.put(("blocked", label, job, text))
                         return
-                detail = self.backend.send(printer, job, f"E-Karu {label}"[:60])
+                detail = self.backend.send(printer, job, f"Etiko {label}"[:60])
                 log(f"OK  {label}: {detail}")
                 self._results.put(("sent", label, detail, job.on_success))
             except PrintError as error:
@@ -3230,7 +3313,7 @@ class EkaruApp(ctk.CTk):
             self.set_status("Ajustes guardados.", "ok")
             win.destroy()
 
-        ctk.CTkButton(holder, text="Guardar", height=40, fg_color=ACCENT, hover_color="#27D3BB", text_color="#04201C",
+        ctk.CTkButton(holder, text="Guardar", height=40, fg_color=ACCENT, hover_color=ACCENT_HOVER, text_color=ON_ACCENT,
                       font=self.fonts["btn"], command=save).pack(fill="x", padx=24, pady=10)
         win.after(150, win.lift)
 
@@ -3274,8 +3357,8 @@ class EkaruApp(ctk.CTk):
         ctk.CTkSegmentedButton(left, values=list(kinds), variable=kind_var, height=34, selected_color=ACCENT_DARK,
                                selected_hover_color=ACCENT, unselected_color=CARD, font=self.fonts["small"],
                                command=lambda value: switch()).pack(fill="x", padx=16, pady=(0, 4))
-        ctk.CTkButton(left, text="Imprimir", height=44, corner_radius=10, fg_color=ACCENT, hover_color="#27D3BB",
-                      text_color="#04201C", font=self.fonts["btn"], command=lambda: do_print()).pack(
+        ctk.CTkButton(left, text="Imprimir", height=44, corner_radius=10, fg_color=ACCENT, hover_color=ACCENT_HOVER,
+                      text_color=ON_ACCENT, font=self.fonts["btn"], command=lambda: do_print()).pack(
             side="bottom", fill="x", padx=16, pady=(4, 14))
         note = ctk.CTkLabel(left, text="", font=self.fonts["small"], text_color=WARN_COLOR, wraplength=400,
                             justify="left", anchor="w")
@@ -3494,8 +3577,8 @@ class EkaruApp(ctk.CTk):
                              font=ctk.CTkFont(family=MONO_FONT, size=18), placeholder_text="Código de barras…",
                              placeholder_text_color=MUTED)
         entry.pack(side="left", fill="x", expand=True)
-        ctk.CTkButton(row, text="Leer", width=90, height=44, fg_color=ACCENT, hover_color="#27D3BB",
-                      text_color="#04201C", font=self.fonts["btn"], command=lambda: read()).pack(side="left", padx=(8, 0))
+        ctk.CTkButton(row, text="Leer", width=90, height=44, fg_color=ACCENT, hover_color=ACCENT_HOVER,
+                      text_color=ON_ACCENT, font=self.fonts["btn"], command=lambda: read()).pack(side="left", padx=(8, 0))
         verdict = ctk.CTkFrame(win, fg_color=CARD, corner_radius=12)
         verdict.pack(fill="x", padx=20, pady=(12, 8))
         headline = ctk.CTkLabel(verdict, text="Esperando un código…", font=self.fonts["h2"], text_color=MUTED,
@@ -3582,8 +3665,8 @@ class EkaruApp(ctk.CTk):
         for label, cmd in (("Guardar diseño", self._ed_save), ("Abrir diseño", self._ed_load)):
             ctk.CTkButton(tools, text=label, height=34, anchor="w", fg_color=CARD, hover_color=LINE,
                           font=self.fonts["small"], command=cmd).pack(fill="x", padx=14, pady=(10, 0))
-        ctk.CTkButton(tools, text="Imprimir diseño (1)", height=42, fg_color=ACCENT, hover_color="#27D3BB",
-                      text_color="#04201C", font=self.fonts["btn"], command=self._ed_print).pack(
+        ctk.CTkButton(tools, text="Imprimir diseño (1)", height=42, fg_color=ACCENT, hover_color=ACCENT_HOVER,
+                      text_color=ON_ACCENT, font=self.fonts["btn"], command=self._ed_print).pack(
             fill="x", padx=14, pady=(14, 8))
         stage = ctk.CTkFrame(page, fg_color=PANEL, corner_radius=12)
         stage.grid(row=1, column=1, sticky="nsew", padx=(0, 20), pady=(0, 16))
@@ -3761,7 +3844,7 @@ class EkaruApp(ctk.CTk):
 
     def _ed_save(self):
         path = filedialog.asksaveasfilename(parent=self, initialdir=str(DESIGNS_DIR), defaultextension=".json",
-                                            filetypes=[("Diseño E-Karú", "*.json")])
+                                            filetypes=[("Diseño Etiko", "*.json")])
         if path:
             try:
                 atomic_write_json(Path(path), {"format": self.ed_format.get(), "items": self.editor_items})
@@ -3771,7 +3854,7 @@ class EkaruApp(ctk.CTk):
 
     def _ed_load(self):
         path = filedialog.askopenfilename(parent=self, initialdir=str(DESIGNS_DIR),
-                                          filetypes=[("Diseño E-Karú", "*.json")])
+                                          filetypes=[("Diseño Etiko", "*.json")])
         if not path:
             return
         try:

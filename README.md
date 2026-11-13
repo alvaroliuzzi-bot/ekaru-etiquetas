@@ -1,12 +1,14 @@
 <div align="center">
 
-<img src="docs/img/icono.png" width="110" alt="Icono de e-Karú">
+<img src="docs/img/icono.png" width="110" alt="Icono de Etiko">
 
-# 🏷️ e-Karú Etiquetas
+# 🏷️ Etiko
 
 **Etiquetas con código de barras para los productos de Glacé, en la impresora térmica HPRT HT400, con la numeración v2 del Informe final**
 
-![Versión](https://img.shields.io/badge/versión-2.1.0-1D7A6B)
+<sub>Antes se llamaba «E-Karú Etiquetas». e-Karú es la caja; Etiko es solo el programa de la impresora.</sub>
+
+![Versión](https://img.shields.io/badge/versión-2.2.0-FF8A5B)
 ![Python](https://img.shields.io/badge/Python-3-3776AB?logo=python&logoColor=white)
 ![UI](https://img.shields.io/badge/UI-customtkinter-14231F)
 ![Impresora](https://img.shields.io/badge/HPRT%20HT400-203%20dpi%20·%20TSPL%2FRAW-B8801A)
@@ -26,7 +28,11 @@
 
 Los baldes los etiqueta la balanza con su software (Scale Manager). Esta app solo agrega, como plan B, una etiqueta de **ID de balde** (código 24). El proceso completo está en [ekaru-procesos](https://github.com/alvaroliuzzi-bot/ekaru-procesos).
 
-<p align="center"><img src="docs/img/app_catalogo.jpg" width="85%" alt="Catálogo de productos de e-Karú Etiquetas"><br><sub>Pantalla principal (captura de la 2.0: en la 2.1 los códigos son los nuevos y se suman la fecha de elaboración y las herramientas de la barra lateral).</sub></p>
+<p align="center"><img src="docs/img/app_catalogo.jpg" width="90%" alt="Pantalla principal de Etiko: catálogo, vista previa y botón de imprimir"><br><sub>Pantalla principal de la 2.2 en Windows.</sub></p>
+
+### Diseño (2.2)
+
+Grafito con un acento coral y etiquetas blancas: el coral marca solo lo que se toca (imprimir, la fila elegida, el campo donde se escribe). Contraste WCAG 2.2 AA en textos y botones, botones de cantidad más grandes, borde visible en el campo con el foco y la fila elegida marcada también con una franja (no solo por color).
 
 ## Novedades de la 2.1
 
