@@ -13,6 +13,9 @@
 
 <img src="docs/img/etiquetas_v21.png" width="100%" alt="Las etiquetas que imprime la versión 2.1: producto (22), grupo PADRE (29), insumo (25), Promo Pack (23) e ID de balde (24)">
 
+
+<a href="https://claude.ai/artifact/6RK7nyF9HsXZztpKUsCuZy"><img src="https://img.shields.io/badge/🗂️_VER_TODOS_LOS_PROYECTOS-en_un_solo_lugar-6D5BD0?style=for-the-badge&labelColor=E0457B" height="40" alt="Ver todos los proyectos en un solo lugar"></a>
+
 </div>
 
 <img src=".github/assets/cards.svg" width="100%" alt="Catálogo, vista previa, impresión directa y lector de códigos">
