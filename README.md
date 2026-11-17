@@ -21,14 +21,14 @@
 
 ```mermaid
 flowchart LR
-    X(["📷 Código escaneado"]):::dark
-    X --> A["20 · Balde<br/>sabor + peso"]:::teal
-    X --> B["22 · Producto<br/>Nº + fecha"]:::coral
-    X --> C["23 · Promo Pack"]:::pink
-    X --> D["24 · ID de balde"]:::violet
-    X --> E["25 · Insumo<br/>Nº + recepción"]:::gold
-    X --> F["29 · Grupo PADRE"]:::plum
-    X --> G["otros · EAN<br/>del proveedor"]:::grey
+    scan("📷 Código escaneado"):::dark
+    scan --> p20["20 · Balde<br/>sabor + peso"]:::teal
+    scan --> p22["22 · Producto<br/>número + fecha"]:::coral
+    scan --> p23["23 · Promo Pack"]:::pink
+    scan --> p24["24 · ID de balde"]:::violet
+    scan --> p25["25 · Insumo<br/>número + recepción"]:::gold
+    scan --> p29["29 · Grupo PADRE"]:::plum
+    scan --> pex["otros · EAN<br/>del proveedor"]:::grey
     classDef dark fill:#14231F,stroke:#FF8A5B,color:#fff
     classDef teal fill:#1D9A84,stroke:#0F5C50,color:#fff
     classDef coral fill:#FF8A5B,stroke:#C2552E,color:#fff
