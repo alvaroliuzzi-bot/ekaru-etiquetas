@@ -1,5 +1,5 @@
 {
-  "printer": "HPRT HT400(203dpi)",
+  "printer": "Archivo .prn (carpeta salida_impresion)",
   "printer_large": "",
   "gap_mm": 2.0,
   "density": 8,
@@ -15,5 +15,7 @@
   "margin_left_mm": 7.7,
   "margin_top_mm": 0.0,
   "row_pitch_mm": 33.0,
-  "codigo_con_fecha": true
+  "codigo_con_fecha": true,
+  "numeracion": "nueva",
+  "aviso_numeracion": false
 }

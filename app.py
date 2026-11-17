@@ -2060,6 +2060,32 @@ SHADOW = "#06080B"
 UI_FONT = "Segoe UI"
 DISPLAY_FONT = "Segoe UI Semibold"
 MONO_FONT = "Consolas"
+# Colores vivos: cada familia de productos tiene su color (franja y etiqueta de categoría en el catálogo).
+RAINBOW = ("#1D9A84", "#3CC4A8", "#F2A541", "#FF8A5B", "#E0457B", "#B0336A", "#6D5BD0")
+CATEGORY_COLORS = {
+    "Palitos": "#F472B6", "Alfajores": "#F2A541", "Brownies": "#E0457B", "Postres": "#B07CF0",
+    "Tartas": "#FB923C", "Conos": "#3CC4A8", "Vasos": "#38BDF8", "Tortas": "#FB7185",
+    "Milkshakes": "#A78BFA", "Smoothies": "#4ADE80", "Grupos PADRE": "#FBBF24", "Baldes 10 x 8 cm": "#2DD4BF",
+}
+NAV_COLORS = {"catalogo": "#FF8A5B", "editor": "#3CC4A8"}
+
+
+def category_color(name):
+    return CATEGORY_COLORS.get(product_category(name), "#94A3B8")
+
+
+def rainbow_strip(parent, height=4, bg=None):
+    """Franja de colores (identidad visual de Etiko); se redibuja al cambiar de tamaño."""
+    c = tk.Canvas(parent, height=height, highlightthickness=0, bd=0, bg=bg or PANEL)
+
+    def draw(event=None):
+        c.delete("all")
+        w = max(1, c.winfo_width())
+        seg = w / len(RAINBOW)
+        for i, col in enumerate(RAINBOW):
+            c.create_rectangle(i * seg, 0, (i + 1) * seg + 1, height, fill=col, outline="")
+    c.bind("<Configure>", draw)
+    return c
 
 
 def resolve_fonts():
@@ -2340,8 +2366,10 @@ class CatalogList(tk.Canvas):
         fill = CARD_HOVER if (name == self.hover and not selected) else CARD
         self._bg[name] = round_rect(self, x0, y0, x1, y1, 12 * s, fill=fill,
                                     outline=ACCENT if selected else LINE, width=2 if selected else 1)
-        if selected:  # franja coral a la izquierda: la selección no depende solo del color del borde
-            round_rect(self, x0 + 2 * s, y0 + 10 * s, x0 + 6 * s, y1 - 10 * s, 2 * s, fill=ACCENT, outline="")
+        cat_col = category_color(name)
+        # franja de color de la familia; la fila elegida la lleva más ancha (no depende solo del borde)
+        round_rect(self, x0 + 2 * s, y0 + 8 * s, x0 + (7 if selected else 5) * s, y1 - 8 * s, 2 * s,
+                   fill=cat_col, outline="")
         self.hits.append((x0, y0, x1, y1, "row", name))
         # etiqueta blanca con código de barras real
         tw = int(150 * s)
@@ -2398,9 +2426,13 @@ class CatalogList(tk.Canvas):
                          fill=TEXT, font=self.f_name)
         self.create_text(text_x, y0 + 31 * s, anchor="nw", text=self._fit(product["detail"], self.f_detail, room),
                          fill=MUTED, font=self.f_detail)
+        cat = product_category(name).upper()
+        cat_w = self.f_small.measure(cat) + 14 * s
+        round_rect(self, text_x, y0 + 49 * s, text_x + cat_w, y0 + 66 * s, 8 * s, fill=CARD_HOVER, outline=cat_col)
+        self.create_text(text_x + cat_w / 2, y0 + 57.5 * s, text=cat, fill=cat_col, font=self.f_small)
         meta = f"{barcode_kind(print_code(name))}  ·  {format_short(product['format'])}"
-        self.create_text(text_x, y0 + 50 * s, anchor="nw", text=self._fit(meta, self.f_small, room),
-                         fill=MUTED, font=self.f_small)
+        self.create_text(text_x + cat_w + 8 * s, y0 + 50 * s, anchor="nw",
+                         text=self._fit(meta, self.f_small, max(10, room - cat_w - 8 * s)), fill=MUTED, font=self.f_small)
 
     # -- interacción -----------------------------------------------------------
     def _hit(self, x, y):
@@ -2609,6 +2641,7 @@ class EkaruApp(ctk.CTk):
         side.grid(row=0, column=0, sticky="nsew")
         side.grid_propagate(False)
         small = getattr(self, "compact", False)
+        rainbow_strip(side, 5).pack(fill="x")
         brand = ctk.CTkFrame(side, fg_color="transparent")
         brand.pack(fill="x", padx=20, pady=(14 if small else 24, 4 if small else 8))
         logo = brand
@@ -2625,7 +2658,7 @@ class EkaruApp(ctk.CTk):
                                       height=22)
         self.num_label.pack(padx=10, pady=2)
         self.nav = {}
-        ctk.CTkLabel(side, text="TRABAJO", font=self.fonts["label"], text_color=MUTED, height=18).pack(
+        ctk.CTkLabel(side, text="TRABAJO", font=self.fonts["label"], text_color="#3CC4A8", height=18).pack(
             anchor="w", padx=22, pady=(0, 2))
         for key, label in (("catalogo", "Catálogo de productos"), ("editor", "Editor de etiquetas")):
             button = ctk.CTkButton(side, text=label, anchor="w", height=34 if small else 42, corner_radius=10,
@@ -2633,7 +2666,7 @@ class EkaruApp(ctk.CTk):
                                    text_color=TEXT, border_spacing=12, command=lambda k=key: self.show_page(k))
             button.pack(fill="x", padx=12, pady=1 if small else 2)
             self.nav[key] = button
-        ctk.CTkLabel(side, text="HERRAMIENTAS", font=self.fonts["label"], text_color=MUTED,
+        ctk.CTkLabel(side, text="HERRAMIENTAS", font=self.fonts["label"], text_color="#B07CF0",
                      height=18).pack(anchor="w", padx=22, pady=(6 if small else 14, 2))
         for label, command in (("Etiquetas internas", self.open_internal_labels),
                                ("Leer un código", self.open_reader),
@@ -2643,7 +2676,7 @@ class EkaruApp(ctk.CTk):
                           border_spacing=12, command=command).pack(fill="x", padx=12, pady=1)
         box = ctk.CTkFrame(side, fg_color=CARD, corner_radius=12)
         box.pack(side="bottom", fill="x", padx=14, pady=(0, 10), before=logo)
-        ctk.CTkLabel(box, text="IMPRESORA", font=self.fonts["label"], text_color=MUTED).pack(
+        ctk.CTkLabel(box, text="IMPRESORA", font=self.fonts["label"], text_color="#F2A541").pack(
             anchor="w", padx=14, pady=(10, 2))
         self.printer_var = tk.StringVar(value="Buscando…")
         self.printer_menu = ctk.CTkOptionMenu(box, variable=self.printer_var, values=["Buscando…"], height=34,
@@ -2676,7 +2709,8 @@ class EkaruApp(ctk.CTk):
                 frame.grid_forget()
         for name, button in self.nav.items():
             active = name == key
-            button.configure(fg_color=CARD if active else "transparent", text_color=ACCENT if active else TEXT)
+            button.configure(fg_color=CARD if active else "transparent",
+                             text_color=NAV_COLORS.get(name, ACCENT) if active else TEXT)
 
     # -- página catálogo -------------------------------------------------------
     def _build_catalog_page(self):
@@ -2714,7 +2748,7 @@ class EkaruApp(ctk.CTk):
         panel.grid_propagate(False)
         panel.grid_columnconfigure(0, weight=1)
         panel.grid_rowconfigure(1, weight=1)
-        ctk.CTkLabel(panel, text="Vista previa de impresión", font=self.fonts["h2"], text_color=TEXT).grid(
+        ctk.CTkLabel(panel, text="Vista previa de impresión", font=self.fonts["h2"], text_color="#3CC4A8").grid(
             row=0, column=0, sticky="w", padx=18, pady=(14, 6))
         self.preview = tk.Canvas(panel, bg=CARD, highlightthickness=0, height=int(110 * self.s))
         self.preview.grid(row=1, column=0, sticky="nsew", padx=14)
